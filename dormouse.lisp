@@ -255,6 +255,8 @@ CL-TCOD and DORMOUSE.
            #:map-char-at
 	   #:in-view?
 	   #:centre-viewport-on
+	   #:window-foreground
+	   #:window-background
 	   #:window-width
 	   #:window-height
 	   #:window-tlx
@@ -1687,29 +1689,31 @@ slot (0-100) to a FADE value (0-1) accepted by the TCOD library."
 (defmethod prepare-window ((win <Window>))
   (cond
     ((window-framed? win)
-     
-     (if (eql win (car *window-stack*))
+     (cond
+	 ((eql win (car *window-stack*))
 	 (console-print-double-frame
 	  (window-console win) 0 0
 	  (window-width win) (window-height win) 
-	  t :set (or (window-title win) +NULL+))
-	 ;; else
+	  t :set (or (window-title win) +NULL+)))
+	 (t
 	 (console-print-frame
 	  (window-console win) 0 0
 	  (window-width win) (window-height win) 
-	  t :set (or (window-title win) +NULL+)))
+	  t :set (or (window-title win) +NULL+))))
+	  
      (when (window-can-close? win)
        (console-set-char (window-console win) (1- (window-width win))
 			 0 (char-code #\X)))
-     (if (window-can-resize? win)
+	
+     (when (window-can-resize? win)
 	 (console-set-char (window-console win) (1- (window-width win))
 			   (1- (window-height win)) 188)))
     (t
      (console-rect (window-console win) 0 0
 		   (window-width win) (window-height win) t :set)))
-  (if (window-draw-function win)
+  (when (window-draw-function win)
        (funcall (window-draw-function win) win))
-  (if (window-children win)
+  (when (window-children win)
       (dolist (child (window-children win))
 	(when (or (window-raise-children-with-parent? win)
 		  (not (window-hidden? child)))
@@ -3439,7 +3443,7 @@ viewport. "))
 (defmethod share-map ((receiver <Viewport>) (giver <Viewport>) tlx tly)
   "Make RECEIVER look onto the same map console as GIVER. RECEIVER's viewport
 is initially positioned with top left corner TLX,TLY on the map console."
-  (if (map-console receiver)
+  (when (map-console receiver)
       (dolist (w *window-stack*)
 	(when (and (not (equal w receiver))
 		   (typep w '<Viewport>)
@@ -3642,7 +3646,7 @@ the GUI.
 ;;; 		  (font-file-rows +DEFAULT-FONT-FILE-ROWS+)
 ;;; 		  (font-file-background-colour
 ;;; 		   +DEFAULT-FONT-FILE-BACKGROUND-COLOUR+))
-  (declare ((integer 1) width height))
+  (declare (type (integer 1) width height))
   (if *dialog->colour-table*
       (clrhash *dialog->colour-table*)
       ;; else
@@ -3703,10 +3707,10 @@ TCOD library function `sys-save-screenshot'.
 The loop runs until the global variable {defvar dormouse:*exit-gui?*} is non-nil.
 
 * See Also: "
-  (let ((k (make-key)) 
-	(rodent (make-mouse))
-	(last-rodent (make-mouse))
-	(topwin nil))
+  (let ((k (make-key))
+	    (rodent (make-mouse))
+	    (last-rodent (make-mouse))
+	    (topwin nil))
     (redraw-all-windows)
     (setf *exit-gui?* nil)
     ;; Main loop
