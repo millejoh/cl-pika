@@ -256,6 +256,7 @@ R, G and B are byte values (0-255) that define the new colour.")
 (defun gui-demo ()
   (let ((width 0)
 	(height 0))
+    (cffi::use-foreign-library tcod::libtcod)
     (setf *player* (make-instance '<Player>))
     (start-gui :title "Dormouse demo" :width 100 :height 50
                :font-file *font-file*)
