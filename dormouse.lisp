@@ -1,5 +1,22 @@
 ;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp; Base: 10 -*- ;;;;;;;;;;;;;;;;;80
 ;;;;
+;;;;    This file is part of DORMOUSE, by Paul Sexton
+;;;;    Released under the Gnu Public License version 3
+;;;;
+;;;;    DORMOUSE is free software: you can redistribute it and/or modify
+;;;;    it under the terms of the GNU General Public License as published by
+;;;;    the Free Software Foundation, either version 3 of the License, or
+;;;;    (at your option) any later version.
+;;;;
+;;;;    DORMOUSE is distributed in the hope that it will be useful,
+;;;;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;;;    GNU General Public License for more details.
+;;;;
+;;;;    You should have received a copy of the GNU General Public License
+;;;;    along with DORMOUSE.  If not, see <http://www.gnu.org/licenses/>.
+;;;;
+;;;;
 ;;;; DORMOUSE
 ;;;; "Graphical" user interface for the libtcod console library.
 ;;;;
@@ -65,26 +82,29 @@
         :iterate)
   (:documentation
 "DORMOUSE is a windowing `graphical' user interface library, built on top of
-the Doryen Library (libtcod).
+the [[http://doryen.eptalys.net/libtcod/][Doryen Library] (libtcod).
 
-<b>What is the Doryen Library?</b>
+* What is the Doryen Library?
 
-Libtcod is a library that implements a truecolour console. It can be thought of
-as a souped-up alternative to (n)curses. The console can be of any size that
-fits on the screen. Both keyboard and mouse events are handled. There is
-support for artibrarily large character sets, and font antialiasing. BMP and
-PNG images can be displayed alongside text.
+The Doryen Library, or /libtcod/, is a library that implements a truecolour
+console. It can be thought of as a souped-up alternative to
+[[http://en.wikipedia.org/wiki/Curses_(programming_library)][Curses]]. The
+console can be of any size that fits on the screen. Both keyboard and mouse
+events are handled. There is support for artibrarily large character sets, and
+font antialiasing. BMP and PNG images can be displayed alongside text.
 
 While libtcod is well-suited for any application where a console-based
 interface is desired, the author's motivation is to support the development of
-roguelike games (see {http://en.wikipedia.org/wiki/Roguelike_game}). As such,
+roguelike games (see [[http://en.wikipedia.org/wiki/Roguelike_game]]). As such,
 libtcod also provides line-of-sight calculations, pathfinding, perlin noise,
-height maps, BSP, parsing of configuration files, and other features.
+height maps, BSP, parsing of configuration files, and other features useful
+to game developers.
 
 Libtcod is written in C and C++. Bindings for libtcod are currently available
-in the python, C#, D, and Common Lisp.
+in the python, C#, D, and
+[[http://bitbucket.org/eeeickythump/cl-tcod/][Common Lisp]].
 
-<b>What is DORMOUSE?</b>
+* What is DORMOUSE?
 
 Dormouse ('Doryen' + 'Mouse', groan) is a windowing `graphical' user interface
 built on top of libtcod. The programmer creates Window objects which are
@@ -92,67 +112,69 @@ displayed on the root console. The mouse can be used to move, resize, and close
 windows. Keyboard and mouse events are sent to whichever window object has the
 focus.
 
-<b>Give me some details about DORMOUSE's features.</b>
+* Features
 
-- Full mouse support, including drag and drop events from one window to another.
-- Move and resize windows with the mouse.
+- Full mouse support, including drag and drop events from one window to another,
+  moving and resizing windows with the mouse.
 - Each window's foreground, background, and text can be displayed in any 32-bit
   colour.
-- Text strings can contain formatting directives, similar to HTML, which can
-  instruct the library about the colours in which parts of the string should be
-  displayed, compose accented characters, or define 'live' areas of the string
-  which generate special events when clicked with the mouse (acting like dialog
-  buttons).
+- Text strings can contain formatting directives, similar to HTML, which can:
+  -  instruct the library about the colours in which parts of the string should
+     be displayed
+  -  compose accented characters
+  -  define 'live' areas of the string which generate special events when
+     clicked with the mouse (acting like dialog buttons).
 - Many subclasses of the base 'Window' class with specialised behaviour,
   including:
--- Viewports: windows which provide a view onto an underlying map (array),
-   which may be much larger. Dragging with the mouse moves the viewport around
-   the map. Intended for the main display area in roguelike games.
--- List windows: browse and select from a list of values. Items can have
-   'hotkeys' defined for quick selection.
--- Filtered windows: list windows that allow the user to type a 'filter
-   string', only displaying items which contain the string.
--- Menu windows: simplified list window where a single mouse click selects and
-   closes the window.
--- Log windows: a scrolling 'buffer' of text, with new messages added at the
-   bottom.
--- Modal windows: prevent access to other windows, forcing the user to respond
-   to a message or dialog.
--- Ghost windows: cannot be interacted with, useful for simply displaying some
-information in an area of the screen.
--- Dialog windows: present strings containing 'dialog buttons' to the user.
--- Tooltip windows: display a message when the mouse hovers over items within
-   the window.
--- Context windows: window in which right-clicking on an item brings up a list
-   of commands which can be applied to the item, where the commands presented
-   will vary according to the characteristics of the right-clicked item.
--- And any combination of the above, using multiple inheritance...
+  - Viewports: windows which provide a view onto an underlying map (array),
+    which may be much larger. Dragging with the mouse moves the viewport around
+    the map. Intended for the main display area in roguelike games.
+  - List windows: browse and select from a list of values. Items can have
+    'hotkeys' defined for quick selection.
+  - Filtered windows: list windows that allow the user to type a 'filter
+    string', only displaying items which contain the string.
+  - Menu windows: simplified list window where a single mouse click selects and
+    closes the window.
+  - Log windows: a scrolling 'buffer' of text, with new messages added at the
+    bottom.
+  - Modal windows: prevent access to other windows, forcing the user to respond
+    to a message or dialog.
+  - Ghost windows: cannot be interacted with, useful for simply displaying some
+    information in an area of the screen.
+  - Dialog windows: present strings containing 'dialog buttons' to the user.
+  - Tooltip windows: display a message when the mouse hovers over items within
+    the window.
+  - Context windows: window in which right-clicking on an item brings up a list
+    of commands which can be applied to the item, where the commands presented
+    will vary according to the characteristics of the right-clicked item.
+  - And any combination of the above, using multiple inheritance...
 - Windows can be created as 'children' of other windows, allowing hiding,
   showing, creation and destruction of a complex group of windows as a unit
 
 The latest version of DORMOUSE can be found at:
-- {http://code.google.com/p/cl-dormouse/}
+- [[http://bitbucket.org/eeeickythump/cl-dormouse/]]
 
-The Doryen library can be found at:
-- {http://doryen.eptalys.net/libtcod/}
+* Dependencies
 
-<b>How do I install it?</b>
+- The Doryen library, which can be found at http://doryen.eptalys.net/libtcod/]
+- CL-TCOD: http://bitbucket.org/eeeickythump/cl-tcod/
+- ITERATE: http://common-lisp.net/project/iterate/
+- ASDF
 
-- Make sure you have ASDF installed (common lisp library).
-- Install ITERATE (common lisp iteration library):
--- {http://common-lisp.net/project/iterate/}
-- Download libtcod from the link above. Compile if necessary.
-- Get CL-TCOD (common lisp bindings to libtcod):
--- {http://bitbucket.org/eeeickythump/cl-tcod/}
-- Get DORMOUSE from the link above.
+* Installation
+
+- Install all dependencies (see above).
+- Download =DORMOUSE= from its
+  [[http://bitbucket.org/eeeickythump/cl-dormouse/][repository.]]
 - Run your lisp and make sure you can load asdf, and asdf can load
-CL-TCOD and DORMOUSE.
+  =CL-TCOD= and =DORMOUSE=.
 - The following is a minimal 'hello world' application:
 ;;; (in-package :cl-user)
-;;; (defpackage :my-new-package
-;;;  (:use :cl :tcod :dormouse))
+;;; (defpackage :mypkg
+;;;  (:use :cl :tcod :dormouse)
+;;;  (:export #:my-test))
 ;;;
-;;; (in-package :my-new-package)
+;;; (in-package :mypkg)
 ;;;
 ;;; (defun my-test ()
 ;;;    (let ((msgwin nil))
@@ -163,7 +185,8 @@ CL-TCOD and DORMOUSE.
 ;;;			 :background :dark-blue))
 ;;;      (add-message msgwin \"Press control-F1 or control-Esc to quit\")
 ;;;      (main-gui-loop)))
-- Save it in a file, load it, and run (my-test) at the lisp prompt to try it.
+- Save it in a file, load it, and run (mypkg:my-test) at the lisp prompt
+  to try it.
 ")
   (:export #:start-gui
 	   #:main-gui-loop
@@ -173,6 +196,8 @@ CL-TCOD and DORMOUSE.
 	   #:*alt*
 	   #:*exit-gui?*
            #:+OPAQUE+
+           #:+INVISIBLE+
+           #:+DIMMED+
 	   #:screen-width
 	   #:screen-height
 	   #:colour
@@ -234,6 +259,7 @@ CL-TCOD and DORMOUSE.
 	   #:list-item-p
 	   #:move-cursor-to-end
 	   #:window-show-tail-by-default?
+           #:window-fades-when-unfocussed?
            #:window-can-close?
            #:window-can-drag?
            #:window-can-resize?
@@ -261,6 +287,8 @@ CL-TCOD and DORMOUSE.
 	   #:window-height
 	   #:window-tlx
 	   #:window-tly
+	   #:window-brx
+	   #:window-bry
            #:window-framed?
 	   #:window-children
 	   #:window-raise-children-with-parent?
@@ -286,63 +314,139 @@ CL-TCOD and DORMOUSE.
 
 (defgeneric destroy-window (win)
   (:documentation
-   "* Arguments: 
-- WIN: an instance of {defclass dormouse:<Window>}
-* Returns: None.
-* Description: Destroy the window object WIN, hiding it first if it is not
-already hidden.
-* See Also: "))
+   "* Arguments
+- WIN :: a [[<Window>]]
+* Returns
+Ignored.
+* Description
+Destroy the window object =WIN=, hiding it first if it is not
+already hidden."))
 (defgeneric touch-windows (win)
   (:documentation
-   "* Arguments: 
-- WIN: an instance of {defclass dormouse:<Window>}
-* Returns: None.
-* Description: Internal function. Links up WIN with all other windows it is touching,
-i.e. overlapping."))
+   "* Arguments
+- WIN :: a [[<Window>]]
+* Returns
+None.
+* Description
+Internal function. Makes =WIN= refresh its list of all other windows it is
+touching, i.e. overlapping."))
 (defgeneric untouch-windows (win)
   (:documentation "TODO document."))
 (defgeneric move-window (win tlx tly)
   (:documentation
-   "* Arguments: 
-- WIN: an instance of {defclass dormouse:<Window>}
-- TLX, TLY: coordinates on the screen where the top left corner of WIN
-is to be moved to.
-* Returns: None.
-* Description: Move the window WIN so that its top left corner is located
-at TLX, TLY relative to the top left corner of the screen.
-* See Also: "))
+   "* Arguments
+- WIN :: a [[<Window>]]
+- TLX, TLY :: coordinates on the screen where the top left corner of =WIN=
+  is to be moved to.
+* Returns
+None.
+* Description
+Move the window =WIN= so that its top left corner is located
+at =(TLX, TLY)= relative to the top left corner of the screen."))
 (defgeneric window-touches-spot? (win x y)
   (:documentation
-     "Does this window overlap the spot at X,Y ?"))
+     "* Arguments
+- WIN :: a [[<Window>]]
+- X, Y :: Integer coordinates of a point on the root console.
+* Returns
+Boolean.
+* Description
+Predicate. Does this window overlap the spot at =(X, Y)= ?"))
 (defgeneric windows-touching? (win other)
   (:documentation
-     "Do these two windows overlap somewhere?"))
+     "* Arguments
+- WIN :: a [[<Window>]]
+- OTHER :: a [[<Window>]]
+* Returns
+Boolean.
+* Description
+Predicate. Do these two windows overlap somewhere?"))
 (defgeneric window-parent (win)
-  (:documentation "TODO document."))
+  (:documentation "* Arguments
+- WIN :: a [[<Window>]]
+* Returns
+A [[<Window>]] or nil.
+* Description
+Finds and returns the parent window of =WIN=, if it has one."))
 (defgeneric windows-below (win)
   (:documentation
-     "List of all windows 'under' WIN in the window stack."))
+     "* Arguments
+- WIN :: a [[<Window>]]
+* Returns
+A list of [[<Window>]] objects, or nil.
+* Description
+Returns list of all windows 'under' =WIN= in the window stack."))
 (defgeneric windows-above (win)
   (:documentation
-     "List of all windows 'above' WIN in the window stack."))
+     "* Arguments
+- WIN :: a [[<Window>]]
+* Returns
+A list of [[<Window>]] objects, or nil.
+* Description
+Returns list of all windows 'above' =WIN= in the window stack."))
 (defgeneric windows-overlying (win)
   (:documentation
-     "List of all windows that both overlap with WIN and are above it in
+     "* Arguments
+- WIN :: a [[<Window>]]
+* Returns
+A list of [[<Window>]] objects, or nil.
+* Description
+List of all windows that both overlap with WIN and are above it in
 the stack."))
 (defgeneric windows-underlying (win)
   (:documentation
-     "List of all windows that both overlap with WIN and are below it in
+     "* Arguments
+- WIN :: a [[<Window>]]
+* Returns
+A list of [[<Window>]] objects, or nil.
+* Description
+List of all windows that both overlap with WIN and are below it in
 the stack."))
 (defgeneric copy-window-to-console (win con)
-  (:documentation "TODO document."))
+  (:documentation "* Arguments
+- WIN :: a [[<Window>]]
+- CON :: a [[console]]
+* Returns
+Ignored.
+* Description
+Copies the contents of =(window-console WIN)= onto another console, =CON=."))
 (defgeneric redraw-window (win)
-  (:documentation   "Force window to copy itself onto the terminal."))
+  (:documentation   "* Arguments
+- WIN :: a [[<Window>]]
+* Returns
+Ignored.
+* Description
+Force =WIN= to copy itself onto the root console."))
 (defgeneric window-redraw-at (win rootx rooty)
-  (:documentation "TODO document."))
-(defgeneric redraw-window-in-area (win x1 y1 x2 y2)
-  (:documentation "TODO document."))
-(defgeneric redraw-window-intersection (win1 win2)
-  (:documentation "TODO document."))
+  (:documentation "* Arguments
+- WIN :: a [[<Window>]]
+- ROOTX, ROOTY :: Coordinates.
+* Returns
+Ignored.
+* Description
+Force =WIN= to copy itself into a rectangle on the root console.
+The top left corner of the rectangle is at =(ROOTX, ROOTY)=."))
+(defgeneric redraw-window-in-area (win x1 y1 x2 y2 &key fade)
+  (:documentation "* Arguments
+- WIN :: a [[<Window>]]
+- X1, Y1 :: Coordinates.
+- X2, Y2 :: Coordinates.
+- FADE :: A float between 0.0 and 1.0, or nil.
+* Returns
+Ignored.
+* Description
+Force =WIN= to copy itself into a rectangle on the root console,
+bounded by =(X1, Y1)= and =(X2, Y2)=."))
+(defgeneric redraw-window-intersection (win1 win2 &key fade)
+  (:documentation "* Arguments
+- WIN1 :: a [[<Window>]]
+- WIN2 :: a [[<Window>]]
+- FADE :: A float between 0.0 and 1.0, or nil.
+* Returns
+Ignored.
+* Description
+Force =WIN1= and =WIN2= to each redraw the area where they overlap with
+each other, onto the root console."))
 (defgeneric redraw-intersecting-windows-below (win)
   (:documentation "TODO document."))
 (defgeneric redraw-intersecting-windows-above (win)
@@ -561,13 +665,14 @@ number moves further down the list, a negative number moves up."))
 ;;;; ======================================================================
 
 (deftype =positive-integer= ()
-  "TODO document."
-  `(integer 0))
+  "Type consisting of all positive integers."
+  `(integer 1))
 (deftype =accent-specifier= ()
-  "TODO document."
+  "Type consisting of characters which are able to specify composition
+of accented characters within strings."
   `(member #\^ #\: #\` #\' #\0))
 (deftype =window-event-type= ()
-  "Type for the DATA argument to SEND-TO-WINDOW."
+  "Type for the =DATA= argument to [[SEND-TO-WINDOW]]."
   `(or (member :left :right :middle :wheel-up :wheel-down :select
                :dialog)
        tcod:key))
@@ -577,8 +682,13 @@ number moves further down the list, a negative number moves up."))
 ;;;; ======================================================================
 
 (defconstant +OPAQUE+ 0
-  "Value of WINDOW-TRANSPARENCY for a window that is not at all
+  "Value of =WINDOW-TRANSPARENCY= for a window that is not at all
 transparent.")
+(defconstant +INVISIBLE+ 100
+  "Value of =WINDOW-TRANSPARENCY= for a window that is completely
+transparent (invisible).")
+(defconstant +DIMMED+ 75
+  "Value of =WINDOW-TRANSPARENCY= for a window that is dimmed.")
 
 ;;;; ======================================================================
 ;;;; (@> "Global variables")
@@ -586,35 +696,35 @@ transparent.")
 
 ;;;; Information about the default font file.
 (defparameter *default-font-file*  "MDA9x14.png"
-  "TODO document.")
+  "Filename of the default font file to be used by libtcod.")
 ;; (defparameter *default-font-file-chars-in-columns?* t
 ;;   "TODO document.")
 ;; (defparameter *default-font-file-background-colour* :true-pink
 ;;   "TODO document.")
 (defparameter *default-font-layout*  :font-layout-ascii-in-row
-  "* Description: Argument to pass to TCOD:CONSOLE-SET-CUSTOM-FONT, that
-describes the layout of the default font file. Can be either a single keyword,
-or a list of keywords.")
+  "Argument to pass to =TCOD:CONSOLE-SET-CUSTOM-FONT=, that describes the
+layout of the [[*default font file*]]. Can be either a single keyword, or a
+list of keywords.")
 
 (defvar *window-stack* (list)
-  "Stack of all existing non-hidden windows. The 'topmost' window is at the
-top of the stack.")
+  "Stack (list) of all existing non-hidden windows. The 'topmost' window is at
+the top of the stack.")
 (defvar *hidden-windows* (list)
-  "Stack of all existing hidden windows. The 'topmost' window is at the
+  "Stack (list) of all existing hidden windows. The 'topmost' window is at the
 top of the stack.")
 (defvar *scratch* nil
   "TCOD console used as a 'scratch' buffer.")
 (defvar *temp-con* nil
   "TCOD console used as a 'scratch' buffer.")
 (defvar *shift* nil
-  "Global variable which is set to `t' while the shift key is being pressed,
-and `nil' when it is released.")
+  "Global variable which is set to =T= while the shift key is being pressed,
+and =NIL= while it is released.")
 (defvar *ctrl* nil
-  "Global variable which is set to `t' while the ctrl key is being pressed,
-and `nil' when it is released.")
+  "Global variable which is set to =T= while the ctrl key is being pressed,
+and =NIL= while it is released.")
 (defvar *alt* nil
-  "Global variable which is set to `t' while the alt/meta key is being pressed,
-and `nil' when it is released.")
+  "Global variable which is set to =T= while the alt/meta key is being pressed,
+and =NIL= when it is released.")
 (defvar *mouse-x* 0
   "Global variable set to the current absolute X-coordinate of the mouse
 cursor, relative to the top left corner of the root console.")
@@ -622,22 +732,33 @@ cursor, relative to the top left corner of the root console.")
   "Global variable set to the current absolute Y-coordinate of the mouse
 cursor, relative to the top left corner of the root console.")
 (defvar *auto-redraw* t
-  "Do operations such as RAISE-WINDOW automatically copy the new window
-appearance to ROOT?")
+  "Do operations such as [[RAISE-WINDOW]] automatically copy the new window
+appearance to [[*ROOT*]]?")
 (defvar *drag-delay* 400
   "Delay before a down-LMB becomes a drag, in milliseconds.")
 (defvar *text-format-start-char* #\{
-  "Character which, when found in a string that is an argument to draw-string,
+  "Character which, when found in a string that is an argument to [[draw-string]],
 heralds the beginning of a formatting instruction. The end of the instruction
 is signalled by a second such character. The string between the characters must
 be the name of a colour, or two colours separated by a comma.")
 (defvar *text-format-end-char* #\}
-  "Character which, when found in a string that is an argument to draw-string,
-heralds the end of an instruction that began with *TEXT-FORMAT-START-CHAR*.")
+  "Character which, when found in a string that is an argument to [[draw-string]],
+heralds the end of an instruction that began with [[*TEXT-FORMAT-START-CHAR*]].")
 (defvar *exit-gui?* nil
-  "* Description: Setting this to non-nil will cause the GUI event-handling
+  "Setting this to non-nil will cause the GUI event-handling
 loop to exit, and control to return to wherever the event-handling loop was
 originally called from.")
+(defvar *focus-changed?* nil
+  "Transiently set to true when a new window has taken over the focus.")
+(defvar *focus-fade-mode* :together
+  "Option that controls fading behaviour of non-focussed windows.
+
+=:TOGETHER= means that all non-background windows gain and lose opacity
+together. When one of these windows has focus, all the others also become
+more visible.
+
+=:SEPARATE= means that windows gain and lose transparency individually. When
+a window gains focus, /it/ becomes more opaque, but other windows do not.")
 
 
 ;;; ======================================================================
@@ -645,7 +766,12 @@ originally called from.")
 ;;; ======================================================================
 
 (defmacro translate-negative-coordinates (x y)
-  "* Description: X and Y are PLACES holding X and Y screen coordinates. If
+  "* Usage
+: (translate-negative-coordinates X Y)
+* Arguments
+- X, Y :: Coordinates.
+* Description
+=X= and =Y= are PLACES holding X and Y screen coordinates. If
 either of them is negative, assume they are specified relative to the bottom
 right corner of the screen rather than the top left corner as is usual, and
 change the coordinates stored there into normal coordinates specified relative
@@ -658,30 +784,43 @@ to the top left corner."
 	 (incf ,y (screen-height)))))
 
 
-(defmacro do-for-windows-by-type ((win wtype &key (include-hidden? nil))
+(defmacro do-for-windows-by-type ((winvar wtype &key (include-hidden? nil))
 				  &body body)
-  "* Description: Iterate through all existing windows that are of type WTYPE,
-which must be a non-quoted symbol naming a class. If INCLUDE-HIDDEN? is true,
+  "* Usage
+: (do-for-windows-by-type (WIN WTYPE &key INCLUDE-HIDDEN?)
+:     ...body...)
+* Arguments
+- WINVAR :: a symbol.
+- WTYPE :: symbol naming a subclass of [[<Window>]]
+- include-hidden? :: boolean.
+* Description
+Iterate through all existing windows that are of type =WTYPE=,
+which must be a non-quoted symbol naming a class. If =INCLUDE-HIDDEN?= is true,
 iterate through hidden as well as visible windows.
 
-Within the body of the iteration, the symbol given as WIN is bound to each
+Within the body of the iteration, the symbol given as =WINVAR= is bound to each
 successive window.
-*Examples:
+
+* Example
 ;;; (do-for-windows-by-type (win <Message-Window>)
 ;;;   (draw-string-at win 1 1 ``Here is a message.''))"
-  `(dolist (,win (if ,include-hidden? (all-windows) *window-stack*))
-     (when (typep ,win ',wtype)
+  `(dolist (,winvar (if ,include-hidden? (all-windows) *window-stack*))
+     (when (typep ,winvar ',wtype)
        ,@body)))
 
 
 
 (defmacro push-end (item list-place)
-  "* Arguments:
-- ITEM: a value.
-- LIST-PLACE: a setf-able place, containing a list.
-* Returns: A list.
-* Destructively appends ITEM to the end of the list stored in LIST-PLACE.
-In other words, like PUSH, but adds to the end of the list rather than
+  "* Usage
+: (push-end ITEM LIST-PLACE)
+* Arguments
+- ITEM :: a value.
+- LIST-PLACE :: a setf-able place, containing a list.
+* Returns
+A list.
+* Description
+Destructively appends =ITEM= to the end of the list stored in =LIST-PLACE=.
+In other words, like =PUSH=, but adds to the end of the list rather than
 the start."
     `(setf ,list-place (append ,list-place (list ,item))))
 
@@ -775,8 +914,8 @@ characters in BAG. Returns the resulting list of substrings."
 
 
 (defun centre-string (str width)
-  "Returns string ST padded by spaces on either side, so that the length
-of the returned string is at least WIDTH."
+  "Returns string =STR= padded by spaces on either side, so that the length
+of the returned string is at least =WIDTH=."
   (check-type str string)
   (check-type width (integer 0))
   (cond
@@ -793,27 +932,31 @@ of the returned string is at least WIDTH."
 
 (defun word-wrap (text &key (width 80) respect-newlines respect-hyphens
 		  exclude-start-char exclude-end-char)
-  "* Arguments:
-- TEXT: A string.
-- WIDTH: An integer. The width that TEXT should be wrapped to fit within.
+  "* Usage
+: (word-wrap TEXT &key WIDTH RESPECT-NEWLINES RESPECT-HYPHENS
+:    EXCLUDE-START-CHAR EXCLUDE-END-CHAR)
+* Arguments
+- TEXT :: A string.
+- WIDTH :: An integer. The maximum length of lines once TEXT is wrapped.
 Default is 80.
-- RESPECT-NEWLINES: Boolean. Should newline characters within the string
-be treated as unbreakable?
-- RESPECT-HYPHENS: Boolean. Should we refrain from breaking hyphenated
-words?
-- EXCLUDE-START-CHAR: A character, or nil.
-- EXCLUDE-END-CHAR: A character, or nil.
+- RESPECT-NEWLINES :: Boolean. Should newline characters within the string
+be treated as unbreakable? (=NIL=)
+- RESPECT-HYPHENS :: Boolean. Should we refrain from breaking hyphenated
+words? (=NIL=)
+- EXCLUDE-START-CHAR :: A character, or nil.
+- EXCLUDE-END-CHAR :: A character, or nil.
 
-* Returns: A list of strings.
+* Return Value
+A list of strings.
 
-* Description: Given a string TEXT, breaks the string into a series of
-smaller strings, none of which is longer than WIDTH. Returns the list of
+* Description
+Given a string =TEXT=, breaks the string into a series of
+smaller strings, none of which is longer than =WIDTH=. Returns the list of
 strings.
 
-If EXCLUDE-START-CHAR and EXCLUDE-END-CHAR are supplied, those characters
+If =EXCLUDE-START-CHAR= and =EXCLUDE-END-CHAR= are supplied, those characters
 will be treated as demarcating sections of the string whose length is to
-be ignored (treated as zero). This allows WORD-WRAP to correctly deal with
-strings that contain <hypertext>...</hypertext> metadata."
+be ignored (treated as zero)."
   (iterate
     (with counted = 0)
     (with breakpoint = nil)
@@ -858,7 +1001,7 @@ strings that contain <hypertext>...</hypertext> metadata."
 ;;;; ======================================================================
 
 (defun character->vk (ch)
-  "Given a character CH, return the value of the 'VK' field that is expected
+  "Given a character =CH=, return the value of the 'VK' field that is expected
 when the key for that character is pressed by the user."
   (case ch
     (#\space
@@ -952,42 +1095,53 @@ key structure, K, in human-readable form."
 ;;;; ======================================================================
 
 (defun make-coloured-string (str &key (dialog? nil) (win nil))
-  "* Returns: a string.
-* Description:
-STR is a string that may contain formatting directives. Each directive is
-enclosed within pairs of the characters *TEXT-FORMAT-START-CHAR*
-... *TEXT-FORMAT-END-CHAR* (these are `{'and `}' by default.)
+  "* Usage
+: (make-coloured-string STR &key DIALOG? WIN)
+* Arguments
+- STR :: A string.
+- DIALOG? :: boolean.
+- WIN :: a [[<Window>]] or nil.
+* Returns
+A string.
+* Description
+
+=STR= is a string that may contain formatting directives. Each directive is
+enclosed within pairs of the characters [[*TEXT-FORMAT-START-CHAR*]] and
+[[*TEXT-FORMAT-END-CHAR*]] (these are `{'and `}' by
+default.). =MAKE-COLOURED-STRING= returns a string that is the same as =STR=,
+except that formatting directives have been replaced with control characters
+that libtcod will understand.
 
 The directives can be used to change the colour in which the string is printed.
-;;; {COLOURNAME} - set foreground colour to COLOURNAME.
-;;; {bg:COLOURNAME} - set background colour to COLOURNAME.
-;;; {fg:COLOURNAME,bg:COLOURNAME} - change foreground and background colours.
+: {COLOURNAME} -- set foreground colour to COLOURNAME.
+: {bg:COLOURNAME} -- set background colour to COLOURNAME.
+: {fg:COLOURNAME,bg:COLOURNAME} -- change foreground and background colours.
 
 Examples of colour directives:
-;;; {green} - change foreground colour to :GREEN
-;;; {fg:green,bg:dark-blue} - change foreground to :GREEN and background to
-;;;                          :DARK-BLUE
-;;; {bg:yellow} - change background to :YELLOW
+: {green} -- change foreground colour to :GREEN
+: {fg:green,bg:dark-blue} -- change foreground to :GREEN and background to
+:                            :DARK-BLUE
+: {bg:yellow} -- change background to :YELLOW
 
 The delimiters can also be used to 'compose' accented characters:
-{:a} - output a lowercase a with diaeresis.
-{'a} - output a lowercase a with acute accent.
-{`a} - output a lowercase a with grave accent.
-{^a} - output a lowercase a with circumflex accent.
-{0a} - output a lowercase a with 'o' accent.
+: {:a} - output a lowercase a with diaeresis.
+: {'a} - output a lowercase a with acute accent.
+: {`a} - output a lowercase a with grave accent.
+: {^a} - output a lowercase a with circumflex accent.
+: {0a} - output a lowercase a with 'o' accent.
 
-The directives can be used to mark parts of the string as 'clickable', like dialog
-buttons:
-;;; {click:MYLABEL}Click me!{/}
+The directives can be used to mark parts of the string as 'clickable', like
+dialog buttons:
+: {click:MYLABEL}Click me!{/}
 
 Finally:
-{/} - return to default foreground and background colours for this window.
-{{ - output a single `{'.
-}} - output a single `}'.
+: {/} - return to default foreground and background colours for this window.
+: {{ - output a single `{'.
+: }} - output a single `}'.
 
-Examples:
-   ``Lisp is the {red}red{/} pill.''
-   ``G{'i}mli, son of Glo{'i}n''
+* Examples
+;;;   \"Lisp is the {red}red{/} pill.\"
+;;;   \"G{'i}mli, son of Glo{'i}n\"
 "
   (let ((pos@ nil)
 	(pos@@ 0))
@@ -1171,7 +1325,7 @@ The ASCII character for CH accented according to ACCENT.
 
 
 (defun string->dialog-codes (str)
-  "Similar to {defun dormouse:string->tcod-colour-codes}, but deals only with
+  "Similar to [[string->tcod-colour-codes]], but deals only with
 the directives that create clickable 'dialog buttons' within a string.
 
 STR is a string containing a series of terms separated by commas. Each term
@@ -1438,6 +1592,11 @@ upon being hidden.")
                         :initarg :transparency
                         :documentation "Amount of transparency of the window,
 from 0-100, where 100 = invisible.")
+   (window-transparency-unfocussed
+    :accessor window-transparency-unfocussed :initform +DIMMED+
+    :type t :initarg :transparency-unfocussed
+    :documentation "When this window does not have the focus, what does its
+transparency become? (NIL = no change in transparency)")
    ;; Internal bookkeeping slots, usually not accessed by the user.
    (window-hidden? :accessor window-hidden? :initform nil :type boolean
                    :documentation "Is this window hidden?")
@@ -1494,12 +1653,15 @@ the screen.
 
 (defmethod process-window ((win <Window>))
   (unless (window-hidden? win)
-    (when (and (window-auto-redraw? win)
-	     (window-changed? win))
-	(prepare-window win)
-	(redraw-window-area win :draw-window t)
-	(console-flush)
-	(setf (window-changed? win) nil))))
+    (cond
+      ((and (window-auto-redraw? win)
+            (window-changed? win))
+       (prepare-window win)
+       (redraw-window-area win :draw-window t)
+       (console-flush)
+       (setf (window-changed? win) nil))
+      (*focus-changed?*
+       (redraw-window-area win :draw-window t)))))
 
 
 
@@ -1676,13 +1838,17 @@ is copied LAST."
 		dest 0 0 1.0 1.0))
 
 
+(defun transparency->fade (tran)
+  (- 1.0 (/ tran 100.0)))
+
+
 (defun window-transparency->fade (win)
   "* Arguments: 
 - WIN: an instance of {defclass dormouse:<Window>}
 * Returns: A real number between 0 and 1, representing a TCOD 'fade' value.
 * Description: Given a window WIN, convert the value of its WINDOW-TRANSPARENCY
 slot (0-100) to a FADE value (0-1) accepted by the TCOD library."
-  (- 1.0 (/ (window-transparency win) 100.0)))
+  (transparency->fade (window-transparency win)))
 
 
 
@@ -1761,6 +1927,11 @@ then NIL is returned."
        (find-if #'(lambda (win) (and (window-touches-spot? win x y)
 				     (not (ghost-window? win))))
 		windows)))))
+
+
+
+(defun window-with-focus ()
+  (top-window-at *mouse-x* *mouse-y*))
 
 
 
@@ -2105,7 +2276,8 @@ its console Y-coordinate.
 
 
 
-(defmethod redraw-window-in-area (win1 rootx1 rooty1 rootx2 rooty2)
+(defmethod redraw-window-in-area (win1 rootx1 rooty1 rootx2 rooty2
+                                  &key fade)
   "Redraw that portion of WIN which lies within the rectangle X1,Y1 -> X2,Y2
 on the root console."
   (translate-negative-coordinates rootx1 rooty1)
@@ -2114,17 +2286,25 @@ on the root console."
 	 (tly (max (window-tly win1) rooty1))
 	 (brx (min (window-brx win1) rootx2))
 	 (bry (min (window-bry win1) rooty2)))
+    (console-fill-char *root*
+                       #\space
+                       tlx tly
+                       (- brx (1- tlx)) (- bry (1- tly)))
     (console-blit (window-console win1)
 		  (rootx->winx win1 tlx)
 		  (rooty->winy win1 tly)
 		  (- brx (1- tlx)) (- bry (1- tly))
-		  *root* tlx tly (window-transparency->fade win1)
-                  (window-transparency->fade win1))))
+		  *root* tlx tly
+                  (or fade (window-transparency->fade win1))
+                  (or fade (window-transparency->fade win1))
+                  )))
 
 
-(defmethod redraw-window-intersection (win1 win2)
+(defmethod redraw-window-intersection ((win1 <Window>) (win2 <Window>)
+                                       &key fade)
   (redraw-window-in-area win1 (window-tlx win2) (window-tly win2)
-			 (window-brx win2) (window-bry win2)))
+			 (window-brx win2) (window-bry win2)
+                         :fade fade))
 
 
 (defmethod redraw-intersecting-windows-below ((win <Window>))
@@ -2137,6 +2317,26 @@ on the root console."
     (redraw-window-intersection w win)))
 
 
+(defun fade-for-window (win)
+  (let ((focus (window-with-focus)))
+    (cond
+      ((or (null (window-transparency-unfocussed win))
+           (eql win focus))
+       (window-transparency->fade win))
+      ((and (eq *focus-fade-mode* :together)
+            (not (typep focus '<background-window>)))
+       (window-transparency->fade win))
+      ((and (typep focus '<window>)
+            (window-raise-children-with-parent? win)
+            (or (find win (window-children focus))
+                (find focus (window-children win))))
+       (window-transparency->fade win))
+      (t
+       (transparency->fade
+        (window-transparency-unfocussed win))))))
+     
+    
+     
 (defun redraw-window-area (win &key (draw-window t))
   "* Arguments: 
 - WIN: an instance of {defclass dormouse:<Window>}
@@ -2154,7 +2354,8 @@ all the other windows underlying WIN."
       (unless (window-hidden? child)
 	(redraw-window-area child)) :draw-window t))
   (dolist (w (nreverse (windows-overlapping win :include-window? draw-window)))
-    (redraw-window-intersection w win))
+    (redraw-window-intersection w win
+                                :fade (fade-for-window w)))
   (console-flush))
 
 
@@ -2341,7 +2542,8 @@ mouse or keyboard. All such messages pass through to the window below it."))
   ((window-can-resize? :initform nil)
    (window-can-drag? :initform nil)
    (window-framed? :initform nil)
-   (window-transparency :initform +OPAQUE+))
+   (window-transparency :initform +OPAQUE+)
+   (window-fades-when-unfocussed? :initform nil))
   (:documentation "Window that always makes itself the lowest in the stack."))
 
 
@@ -3710,7 +3912,7 @@ The loop runs until the global variable {defvar dormouse:*exit-gui?*} is non-nil
   (let ((k (make-key))
 	    (rodent (make-mouse))
 	    (last-rodent (make-mouse))
-	    (topwin nil))
+	    (topwin nil) (last-topwin nil))
     (redraw-all-windows)
     (setf *exit-gui?* nil)
     ;; Main loop
@@ -3722,11 +3924,13 @@ The loop runs until the global variable {defvar dormouse:*exit-gui?*} is non-nil
                         '(:key-pressed :key-released))))
 	(process-windows)
 	(setf rodent (mouse-get-status))
+        ;(break)
 	(unless (equal rodent last-rodent)
 	  ;; Deal with mouse events
 	  (setf *mouse-x* (mouse-cx rodent)
 		*mouse-y* (mouse-cy rodent)
-		topwin (top-window-at *mouse-x* *mouse-y*))
+		topwin (window-with-focus))
+          (setf *focus-changed?* (not (eql topwin last-topwin)))
 	  (cond
 	    ;; L button clicked
 	    ((mouse-lbutton-pressed rodent)
@@ -3814,6 +4018,7 @@ The loop runs until the global variable {defvar dormouse:*exit-gui?*} is non-nil
             
 	    
 	    (t				; mouse "just hovering"
+             ;(break)
 	     (when topwin
 	       (send-to-window topwin :hover :unspecified ;(mouse-flags rodent)
 			       (- *mouse-x* (window-tlx topwin))
@@ -3827,7 +4032,7 @@ The loop runs until the global variable {defvar dormouse:*exit-gui?*} is non-nil
 	(:printscreen (tcod:sys-save-screenshot))
 	(otherwise
 	 ;; send (vk k) to window under mouse
-	 (when (setf topwin (top-window-at *mouse-x* *mouse-y*))
+	 (when (setf topwin (window-with-focus))
 	   (send-key-to-window topwin k
 			       (- *mouse-x* (window-tlx topwin))
 			       (- *mouse-y* (window-tly topwin)))))))

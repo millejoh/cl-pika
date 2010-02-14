@@ -307,7 +307,8 @@ R, G and B are byte values (0-255) that define the new colour.")
     (setf *msgwin*
 	  (make-instance '<Log-Window> :tlx 65 :tly 13 :width 33 :height 35
 			 :title "Messages" :foreground :light-blue
-			 :background :dark-blue :transparency +OPAQUE+))
+			 :background :dark-blue :transparency +OPAQUE+
+                         :transparency-unfocussed 50))
     (setf *menuwin*
 	  (make-instance '<MyMenu-Window> :tlx 40 :tly 10 :width 15 :height 7
 			 :title "list" :foreground :light-blue
