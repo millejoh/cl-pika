@@ -1860,12 +1860,12 @@ slot (0-100) to a FADE value (0-1) accepted by the TCOD library."
 	 (console-print-double-frame
 	  (window-console win) 0 0
 	  (window-width win) (window-height win) 
-	  t :set (or (window-title win) +NULL+)))
+	  t :set (or (window-title win) "")))
 	 (t
 	 (console-print-frame
 	  (window-console win) 0 0
 	  (window-width win) (window-height win) 
-	  t :set (or (window-title win) +NULL+))))
+	  t :set (or (window-title win) ""))))
 	  
      (when (window-can-close? win)
        (console-set-char (window-console win) (1- (window-width win))
@@ -2162,10 +2162,11 @@ Return the Y-coordinate of the bottom right corner of the window.
      (console-put-char-ex con winx winy ch (colour fg) (colour bg)))
     ((or fg bg)
      (console-set-char con winx winy ch)
-     (if fg
-	 (console-set-fore con winx winy (colour fg)))
-     (if bg
-	 (console-set-back con winx winy (colour bg) background-flag)))
+     (cond
+       (fg
+        (console-set-fore con winx winy (colour fg)))
+       (bg
+        (console-set-back con winx winy (colour bg) background-flag))))
     (t
      (console-put-char con winx winy ch background-flag)))
   ;; todo restore old values after printing
@@ -3512,8 +3513,8 @@ onto.")
    (window-make-map? :accessor window-make-map? :initform t :initarg :make-map?)
    (window-map-shared :accessor window-map-shared :initform nil
                       :documentation "List of windows sharing this map")
-   (map-xdim :accessor map-xdim :initform nil)
-   (map-ydim :accessor map-ydim :initform nil)
+   (map-xdim :accessor map-xdim :initarg :map-xdim :initform nil)
+   (map-ydim :accessor map-ydim :initarg :map-ydim :initform nil)
    (view-tlx :accessor view-tlx :initform 0)   ; position of the viewport on
                                                ; the map
    (view-tly :accessor view-tly :initform 0))
@@ -3870,7 +3871,7 @@ the GUI.
 ;;; 			   font-file-columns font-file-rows
 ;;; 			   font-file-chars-in-columns?
 ;;; 			   (colour font-file-background-colour))
-  (console-init-root width height title nil)
+  (console-init-root width height title nil :RENDERER-SDL)
   (start-colours)
   (setf *window-stack* nil)
   (setf *temp-con*
@@ -3894,31 +3895,34 @@ Calls process-window for each non-hidden window.
 
 
 (defun main-gui-loop ()
-  "* Arguments: None.
-* Returns: None.
+  "* Arguments
+None.
+* Returns
+None.
+* Description
 
-* Description: The function {defun dormouse:start-gui} must be called to
-  initialise libtcod prior to this function being called.
+The function [[start-gui]] must be called to initialise libtcod prior to this
+function being called.
 
-When called, begins 'running' the currently defined window
-system. All existing non-hidden windows are displayed, and a loop is entered
-where keyboard and mouse events are intercepted and handled or sent to window
-objects for handling. A special case is the PrintScreen key, which calls the
-TCOD library function `sys-save-screenshot'.
+When called, begins 'running' the currently defined window system. All existing
+non-hidden windows are displayed, and a loop is entered where keyboard and
+mouse events are intercepted and handled or sent to window objects for
+handling. A special case is the PrintScreen key, which calls the TCOD library
+function =sys-save-screenshot=.
 
-The loop runs until the global variable {defvar dormouse:*exit-gui?*} is non-nil.
-
-* See Also: "
+The loop runs until the global variable [[*exit-gui?*]] is non-nil.
+"
   (let ((k (make-key))
 	    (rodent (make-mouse))
 	    (last-rodent (make-mouse))
 	    (topwin nil) (last-topwin nil))
     (redraw-all-windows)
     (setf *exit-gui?* nil)
+    (break)
     ;; Main loop
     (iterate
       (until *exit-gui?*)
-      (console-flush) 
+      (console-flush)
       (iterate
         (until (setf k (console-check-for-keypress
                         '(:key-pressed :key-released))))
@@ -3965,16 +3969,17 @@ The loop runs until the global variable {defvar dormouse:*exit-gui?*} is non-nil
 			       (- *mouse-y* (window-tly topwin)))))
 	    
 	    ;; Mouse Wheel events
-	    ((mouse-wheel-up rodent)
-	     (when topwin
-	       (send-to-window topwin :wheel-up nil
-			       (- *mouse-x* (window-tlx topwin))
-			       (- *mouse-y* (window-tly topwin)))))
-	    ((mouse-wheel-down rodent)
-	     (when topwin
-	       (send-to-window topwin :wheel-down nil
-			       (- *mouse-x* (window-tlx topwin))
-			       (- *mouse-y* (window-tly topwin)))))
+            ;; Removed from libtcod
+	    ;; ((mouse-wheel-up rodent)
+	    ;;  (when topwin
+	    ;;    (send-to-window topwin :wheel-up nil
+	    ;;     	       (- *mouse-x* (window-tlx topwin))
+	    ;;     	       (- *mouse-y* (window-tly topwin)))))
+	    ;; ((mouse-wheel-down rodent)
+	    ;;  (when topwin
+	    ;;    (send-to-window topwin :wheel-down nil
+	    ;;     	       (- *mouse-x* (window-tlx topwin))
+	    ;;     	       (- *mouse-y* (window-tly topwin)))))
 	    
 	    ;; L button held down
 	    ((mouse-lbutton rodent)
@@ -3982,6 +3987,7 @@ The loop runs until the global variable {defvar dormouse:*exit-gui?*} is non-nil
 	       (raise-window topwin)
 	       (let ((start (get-internal-real-time))
 		     (dragged? nil))
+                 (declare (ignorable dragged?))
 		 (iterate
                    (while (mouse-lbutton (setf rodent (mouse-get-status))))
 		   (unless (and (< (get-internal-real-time)

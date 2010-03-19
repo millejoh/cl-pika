@@ -119,7 +119,7 @@ R, G and B are byte values (0-255) that define the new colour.")
          (add-message *msgwin* "You pressed `~C'." (key-c k))
          (prepare-window *msgwin*)
          (redraw-window-area *msgwin*)
-					;(console-flush)
+         ;;(console-flush)
          (if (eql #\q (key-c k))
              (setf *exit-gui?* t)))
         (otherwise
@@ -149,7 +149,8 @@ R, G and B are byte values (0-255) that define the new colour.")
 
 (defmethod send-to-window ((win <MyViewport>) (data (eql :hover)) parm winx winy)
   (declare (ignore parm))
-  (bottom-message "[~C~C~C] MAP POSITION = ~3D ~3D"
+  (bottom-message "~4D fps  [~C~C~C] MAP POSITION = ~3D ~3D"
+                  (sys-get-fps)
 		  (if *shift* #\S #\space)
 		  (if *ctrl* #\C #\space)
 		  (if *alt* #\A #\space)
@@ -256,7 +257,7 @@ R, G and B are byte values (0-255) that define the new colour.")
 (defun gui-demo ()
   (let ((width 0)
 	(height 0))
-    (cffi::use-foreign-library tcod::libtcod)
+    ;;(cffi::use-foreign-library tcod::libtcod)
     (setf *player* (make-instance '<Player>))
     (start-gui :title "Dormouse demo" :width 100 :height 50
                :font-file *font-file*)
