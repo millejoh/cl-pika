@@ -12,7 +12,8 @@
 (defpackage :tcod.gui-demo
   (:nicknames :gui-demo)
   (:use :cl :tcod :dormouse)
-  (:export #:gui-demo))
+  (:export #:gui-demo
+           #:resume-gui))
 
 (in-package :tcod.gui-demo)
 
@@ -149,13 +150,19 @@ R, G and B are byte values (0-255) that define the new colour.")
 
 (defmethod send-to-window ((win <MyViewport>) (data (eql :hover)) parm winx winy)
   (declare (ignore parm))
-  (bottom-message "~4D fps  [~C~C~C] MAP POSITION = ~3D ~3D"
+  (bottom-message "~4D fps  [~C~C~C] [~C~C~C] [~C~C~C] MAP POSITION = ~3D ~3D"
                   (sys-get-fps)
-		  (if *shift* #\S #\space)
-		  (if *ctrl* #\C #\space)
-		  (if *alt* #\A #\space)
-		  (winx->mapx win winx)
-		  (winy->mapy win winy)))
+                  (if *shift* #\S #\space)
+                  (if *ctrl* #\C #\space)
+                  (if *alt* #\A #\space)
+                  (if (plusp (mouse-get-lbutton)) #\L #\space)
+                  (if (plusp (mouse-get-mbutton)) #\M #\space)
+                  (if (plusp (mouse-get-rbutton)) #\R #\space)
+                  (if (plusp (mouse-get-lbutton-pressed)) #\l #\space)
+                  (if (plusp (mouse-get-mbutton-pressed)) #\m #\space)
+                  (if (plusp (mouse-get-rbutton-pressed)) #\r #\space)
+                  (winx->mapx win winx)
+                  (winy->mapy win winy)))
 
 
 (defclass <MyDialog-Window> (<Dialog-Window>)

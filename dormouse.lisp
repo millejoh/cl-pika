@@ -1658,11 +1658,15 @@ the screen.
             (window-changed? win))
        (prepare-window win)
        (redraw-window-area win :draw-window t)
-       (console-flush)
+       (dirty-window win)   ; (console-flush)
        (setf (window-changed? win) nil))
       (*focus-changed?*
        (redraw-window-area win :draw-window t)))))
 
+
+(defmethod dirty-window ((win <Window>))
+  (console-set-dirty (window-tlx win) (window-tly win)
+                     (window-width win) (window-height win)))
 
 
 (defmethod window-parent ((win <Window>))
@@ -1813,7 +1817,7 @@ B-TLX,B-TLY==>B-BRX,B-BRY overlap?"
     (prepare-window win))
   (console-clear *root*)
   (copy-windows-to-console *window-stack* *root*)
-  (console-flush))
+  (console-set-dirty 0 0 (screen-width) (screen-height)))
 
 
 (defun copy-windows-to-console (window-list con)
@@ -2071,6 +2075,7 @@ Return the Y-coordinate of the bottom right corner of the window.
   (setf (window-hidden? win) nil)
   (setf (window-changed? win) t)
   (push win *window-stack*)
+  (dirty-window win)
   (when (window-children win)
     (dolist (child  (window-children win))
       (when (or (window-raise-children-with-parent? win)
@@ -2357,7 +2362,7 @@ all the other windows underlying WIN."
   (dolist (w (nreverse (windows-overlapping win :include-window? draw-window)))
     (redraw-window-intersection w win
                                 :fade (fade-for-window w)))
-  (console-flush))
+  (dirty-window win))
 
 
 (defun redraw-all-at (rootx rooty)
@@ -2760,7 +2765,8 @@ The enter key selects the item under the cursor."))
 			 winx winy))
 	(otherwise
          (let ((matching (find-if #'(lambda (item)
-                                      (same-keys? (list-item-hotkey item) k))
+                                      (and (key-p (list-item-hotkey item))
+                                           (same-keys? (list-item-hotkey item) k)))
                                   (window-items win))))
            (cond 
              (matching
@@ -3378,8 +3384,9 @@ certain window regions."))
   (unless (window-hidden? win)
     (when (or (/= *mouse-x* (last-mousex win))
 	      (/= *mouse-y* (last-mousey win)))
-;;    (unless (eql (top-window-at *mouse-x* *mouse-y*) (window-owner win))
-    (hide-window win))
+      ;;    (unless (eql (top-window-at *mouse-x* *mouse-y*) (window-owner win))
+      (dirty-window win)
+      (hide-window win))
     (setf (last-mousex win) *mouse-x*
 	  (last-mousey win) *mouse-y*)))
 
@@ -3913,22 +3920,21 @@ function =sys-save-screenshot=.
 The loop runs until the global variable [[*exit-gui?*]] is non-nil.
 "
   (let ((k (make-key))
-	    (rodent (make-mouse))
-	    (last-rodent (make-mouse))
-	    (topwin nil) (last-topwin nil))
+        (rodent (make-mouse))
+        (last-rodent (make-mouse))
+        (topwin nil) (last-topwin nil))
     (redraw-all-windows)
     (setf *exit-gui?* nil)
-    (break)
     ;; Main loop
     (iterate
       (until *exit-gui?*)
-      (console-flush)
+      (console-flush) 
       (iterate
-        (until (setf k (console-check-for-keypress
-                        '(:key-pressed :key-released))))
-	(process-windows)
+        (setf k (console-check-for-keypress
+                 '(:key-pressed :key-released)))
+        (if k (leave))
+	(process-windows) 
 	(setf rodent (mouse-get-status))
-        ;(break)
 	(unless (equal rodent last-rodent)
 	  ;; Deal with mouse events
 	  (setf *mouse-x* (mouse-cx rodent)
@@ -4016,21 +4022,32 @@ The loop runs until the global variable [[*exit-gui?*]] is non-nil.
 					(- *mouse-x* (window-tlx topwin))
 					(- *mouse-y* (window-tly topwin)))))
 		     (return))))))
-		 ;; (unless dragged?
-		 ;;   ;; Just click
-		 ;;   (send-to-window topwin :left nil
-		 ;;        	   (- *mouse-x* (window-tlx topwin))
-		 ;;        	   (- *mouse-y* (window-tly topwin)))))))
+            ;; (unless dragged?
+            ;;   ;; Just click
+            ;;   (send-to-window topwin :left nil
+            ;;        	   (- *mouse-x* (window-tlx topwin))
+            ;;        	   (- *mouse-y* (window-tly topwin)))))))
             
 	    
 	    (t				; mouse "just hovering"
-             ;(break)
+                                        ;(break)
 	     (when topwin
 	       (send-to-window topwin :hover :unspecified ;(mouse-flags rodent)
 			       (- *mouse-x* (window-tlx topwin))
 			       (- *mouse-y* (window-tly topwin))))))
-	  (console-flush)))
-      
+          ;; CONSOLE-FLUSH should not be done every iteration, which
+          ;; is what was happening below.
+          ;; This has been changed so now we only flush the console if the
+          ;; mouse moves/mouse status changes, or a key is pressed.
+          ;; It seems to work.
+          ;;
+          ;; Alternative plan could be to time since last flush, limit to
+          ;; < 20 fps.
+          (unless (equal rodent last-rodent)
+            (setf last-rodent rodent)
+            (console-flush))
+          ))
+
       (case (key-vk k)
 	(:shift (setf *shift* (key-pressed k)))
 	(:control (setf *ctrl* (key-pressed k)))
