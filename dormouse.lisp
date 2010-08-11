@@ -2195,8 +2195,8 @@ Return the Y-coordinate of the bottom right corner of the window.
 	 (console-set-foreground-colour (window-console win) (colour fg)))
      (if bg
 	 (console-set-background-colour (window-console win) (colour bg)))
-     (console-print-left (window-console win) winx winy :set
-			 (make-coloured-string str :win win))
+     (console-print (window-console win) winx winy 
+                    (make-coloured-string str :win win))
      (if fg
 	 (console-set-foreground-colour (window-console win)
 					(colour (window-foreground win))))
@@ -2204,8 +2204,8 @@ Return the Y-coordinate of the bottom right corner of the window.
 	 (console-set-background-colour (window-console win)
 					(colour (window-background win)))))
     (t
-     (console-print-left (window-console win) winx winy :set
-			 (make-coloured-string str :win win)))))
+     (console-print (window-console win) winx winy
+                    (make-coloured-string str :win win)))))
 
 
 
@@ -3239,9 +3239,9 @@ onto the bottom line of the root console.
   (declare (string fmt))
   (console-rect *root* 0 (1- (console-get-height *root*))
 		(console-get-width *root*) 1 t :set)
-  (console-print-left *root* 0 (1- (console-get-height *root*))
-	 :set (format nil "~vA" (console-get-width *root*)
-		      (apply #'format nil fmt args))))
+  (console-print *root* 0 (1- (console-get-height *root*))
+                 (format nil "~vA" (console-get-width *root*)
+                         (apply #'format nil fmt args))))
 
 
 ;;;===========================================================================
@@ -3311,8 +3311,8 @@ when clicked on."))
   
 (defmethod draw-string-at :after ((win <Dialog-Window>) str winx winy &key
 				  &allow-other-keys)
-  (console-print-left (dialog-console win) winx winy :set
-		      (make-coloured-string str :dialog? t :win win)))
+  (console-print (dialog-console win) winx winy
+                 (make-coloured-string str :dialog? t :win win)))
 
 
 (defmethod send-to-window ((win <Dialog-Window>) (data (eql :hover))
