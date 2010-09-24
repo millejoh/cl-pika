@@ -40,10 +40,11 @@
 ;;;; (@> "Colourising strings")
 
 ;;;; - (@> "Window")
-;;;;      - (@> "List-Window")
+;;;;      - [[List Window]]
 ;;;;           - (@> "Filtered-Window")
 ;;;;           - (@> "Menu-Window")
-;;;;           - (@> "Log-Window")
+;;;;           - [[Log Window]]
+;;;;           - [[Terminal Window]]
 ;;;;      - (@> "Modal-Window")
 ;;;;           - (@> "Alert-Window")
 ;;;;           - (@> "Yes/No-Window")
@@ -200,6 +201,7 @@ The latest version of DORMOUSE can be found at:
            #:+DIMMED+
 	   #:screen-width
 	   #:screen-height
+           #:legal-window-coordinates?
 	   #:colour
 	   #:destroy-window
 	   #:destroy-all-windows
@@ -214,6 +216,7 @@ The latest version of DORMOUSE can be found at:
 	   #:hide-window
 	   #:raise-window
 	   #:move-window
+           #:resize-window
 	   #:*window-stack*
 	   #:all-windows
 	   #:*mouse-x*
@@ -233,6 +236,7 @@ The latest version of DORMOUSE can be found at:
 	   #:<Tooltip-Window>
 	   #:<Filtered-Window>
 	   #:filter-string
+           #:clear-filter
 	   #:binding->key
 	   #:character->vk
 	   #:character->shift
@@ -270,6 +274,8 @@ The latest version of DORMOUSE can be found at:
 	   #:add-message
            #:add-message-and-redraw
 	   #:bottom-message
+           ;; Terminal window
+           #:<Terminal-Window>
 	   ;; Viewports
 	   #:<Viewport>
 	   #:clear-map
@@ -332,6 +338,7 @@ Internal function. Makes =WIN= refresh its list of all other windows it is
 touching, i.e. overlapping."))
 (defgeneric untouch-windows (win)
   (:documentation "TODO document."))
+(defgeneric dirty-window (win))
 (defgeneric move-window (win tlx tly)
   (:documentation
    "* Arguments
@@ -599,6 +606,7 @@ tail of the list is visible (including the new message)."))
 that the message is immediately visible."))
 (defgeneric clear-messages (win)
   (:documentation "TODO document."))
+(defgeneric clear-filter (win))
 (defgeneric calculate-floating-window-width (win)
   (:documentation "TODO document."))
 (defgeneric tooltip-text (win datum winx winy)
@@ -677,9 +685,9 @@ of accented characters within strings."
                :dialog)
        tcod:key))
 
-;;;; ======================================================================
-;;;; (@> "Constants")
-;;;; ======================================================================
+
+;;;; <<Constants>> ============================================================
+
 
 (defconstant +OPAQUE+ 0
   "Value of =WINDOW-TRANSPARENCY= for a window that is not at all
@@ -690,9 +698,9 @@ transparent (invisible).")
 (defconstant +DIMMED+ 75
   "Value of =WINDOW-TRANSPARENCY= for a window that is dimmed.")
 
-;;;; ======================================================================
-;;;; (@> "Global variables")
-;;;; ======================================================================
+
+;;;; <<Global variables>> =====================================================
+
 
 ;;;; Information about the default font file.
 (defparameter *default-font-file*  "MDA9x14.png"
@@ -761,9 +769,8 @@ more visible.
 a window gains focus, /it/ becomes more opaque, but other windows do not.")
 
 
-;;; ======================================================================
-;;; (@> "Utility functions")
-;;; ======================================================================
+;;; <<Utility functions>> =====================================================
+
 
 (defmacro translate-negative-coordinates (x y)
   "* Usage
@@ -996,9 +1003,8 @@ be ignored (treated as zero)."
 
 
 
-;;;; ======================================================================
-;;;;(@> "Keys")
-;;;; ======================================================================
+;;; <<Keys>> ==================================================================
+
 
 (defun character->vk (ch)
   "Given a character =CH=, return the value of the 'VK' field that is expected
@@ -1090,9 +1096,8 @@ key structure, K, in human-readable form."
                   (format nil "~A" (key-vk k))))))
 
 
-;;;; ======================================================================
-;;;; (@> "Colourising strings")
-;;;; ======================================================================
+;;; <<Colourising strings>> ===================================================
+
 
 (defun make-coloured-string (str &key (dialog? nil) (win nil))
   "* Usage
@@ -1520,9 +1525,8 @@ with a foreground colour of TEXT-COLOUR. Possible values for TEXT are:
 
 
 
-;;;; ======================================================================
-;;;; (@> "Window")
-;;;; ======================================================================
+;;; <<Window class>> ==========================================================
+
 
 (defclass <Window> ()
   ((window-tlx :initform 0 :accessor window-tlx :type integer
@@ -1637,6 +1641,7 @@ the screen.
 				 (colour (window-foreground win)))
   (console-set-background-colour (window-console win)
 				 (colour (window-background win)))
+  (console-set-background-flag (window-console win) :set)
   ;; Translate negative numbers for TLX,TLY to be relative to the
   ;; bottom right corner of the screen.
   (translate-negative-coordinates (window-tlx win) (window-tly win))
@@ -2012,6 +2017,7 @@ Return the Y-coordinate of the bottom right corner of the window.
 			   0 (- root-width width 1)))
       (setf tly (constrain (- (mouse-cy rodent) offsety)
 			   0 (- root-height height 1)))
+      ;;(format t "~A ~A ~A ~A~%" tlx tly width height)
       (unless (and (= tlx (window-tlx win)) (= tly (window-tly win)))
 	;; copy saved win to root  at WIN's old position (erasing WIN)
 	(console-blit *temp-con* 0 0
@@ -2187,7 +2193,8 @@ Return the Y-coordinate of the bottom right corner of the window.
 
 
 (defmethod draw-string-at ((win <Window>) str winx winy
-			   &key (fg nil) (bg nil) (redraw *auto-redraw*))
+			   &key (fg nil) (bg nil) (background-flag :set)
+                           (redraw *auto-redraw*))
   (declare (ignorable redraw))
   (cond
     ((or fg bg)
@@ -2195,7 +2202,8 @@ Return the Y-coordinate of the bottom right corner of the window.
 	 (console-set-foreground-colour (window-console win) (colour fg)))
      (if bg
 	 (console-set-background-colour (window-console win) (colour bg)))
-     (console-print (window-console win) winx winy 
+     (console-print-ex (window-console win) winx winy
+                       background-flag :left
                     (make-coloured-string str :win win))
      (if fg
 	 (console-set-foreground-colour (window-console win)
@@ -2204,7 +2212,8 @@ Return the Y-coordinate of the bottom right corner of the window.
 	 (console-set-background-colour (window-console win)
 					(colour (window-background win)))))
     (t
-     (console-print (window-console win) winx winy
+     (console-print-ex (window-console win) winx winy
+                       background-flag :left
                     (make-coloured-string str :win win)))))
 
 
@@ -2494,9 +2503,11 @@ on (yes) or (no) or to press Y or N."))
   (cond
     ((and (string= str "yes")
 	  (window-choice-function win))
+     (hide-window win)
      (funcall (window-choice-function win) t))
     ((and (string= str "no")
 	  (window-choice-function win))
+     (hide-window win)
      (funcall (window-choice-function win) nil))
     (t
      (call-next-method))))
@@ -2509,11 +2520,13 @@ on (yes) or (no) or to press Y or N."))
       ((and (eql :char (key-vk k))
 	    (member (key-c k) '(#\Y #\y))
 	    (window-choice-function win))
+       (hide-window win)
        (funcall (window-choice-function win) t)
        k)
       ((and (eql :char (key-vk k))
 	    (member (key-c k) '(#\N #\n))
 	    (window-choice-function win))
+       (hide-window win)
        (funcall (window-choice-function win) nil)
        k)
       (t
@@ -2564,9 +2577,8 @@ mouse or keyboard. All such messages pass through to the window below it."))
 
 
 
-;;;===========================================================================
-;;; (@> "List-Window")
-;;;===========================================================================
+;;; <<List Window>> ===========================================================
+
 
 (defclass <List-Window> (<Window>)
   ((window-items :accessor window-items :initform nil :type list)
@@ -2639,8 +2651,12 @@ The enter key selects the item under the cursor."))
   (nth (window-cursor win) (window-items win)))
 
 
+(defmethod window-page-length ((win <List-Window>))
+  (- (window-height win) 2))
+
+
 (defmethod prepare-window :after ((win <List-Window>))
-  (let* ((pagelen (- (window-height win) 2))
+  (let* ((pagelen (window-page-length win))
 	 (offset 0))
     ;; Configure window
     (if (>= pagelen (window-items-lines win))
@@ -2818,6 +2834,9 @@ Pressing BACKSPACE will erase a character from the end of FILTER-STRING.
 Pressing DELETE will erase all characters in FILTER-STRING."))
 
 
+
+(defmethod clear-filter ((win <Filtered-Window>))
+  (setf (filter-string win) nil))
 
 
 (defmethod clear-items :after ((win <Filtered-Window>))
@@ -3110,9 +3129,8 @@ current window activation.")))
   nil)
 
 
-;;;===========================================================================
-;;; (@> "Log-Window")
-;;;===========================================================================
+;;; <<Log Window>> ============================================================
+
 
 (defclass <Log-Window> (<List-Window>)
   ((window-framed? :initform t)
@@ -3158,6 +3176,7 @@ refreshed.")
 (defmethod draw-item-at ((win <Log-Window>) (item list-item)
 			 winx winy (cursor? (eql t)))
   (draw-item-at win item winx winy nil))
+
 
 
 (defmethod send-key-to-window :around ((win <Log-Window>) (k key) winx winy)
@@ -3244,9 +3263,277 @@ onto the bottom line of the root console.
                          (apply #'format nil fmt args))))
 
 
-;;;===========================================================================
-;;; (@> "Dialog-Window")
-;;;===========================================================================
+;;; <<Terminal Window>> =======================================================
+
+
+(defclass <Terminal-Window> (<Log-Window>)
+  ((window-show-tail-by-default? :initform t)
+   (window-prompt :initform "> " :initarg :prompt :accessor window-prompt)
+   ;; Colours for the prompt, and the input text
+   (window-prompt-foreground :initform nil :initarg :prompt-fg
+                             :accessor window-prompt-foreground)
+   (window-prompt-background :initform nil :initarg :prompt-bg
+                             :accessor window-prompt-background)
+   (window-input-foreground :initform nil :initarg :input-fg
+                             :accessor window-input-foreground)
+   (window-input-background :initform nil :initarg :input-bg
+                             :accessor window-input-background)
+   (window-input-string :initform nil :accessor window-input-string)
+   (window-input-rendered :initform nil
+                          :documentation "List of strings, updated whenever
+the current 'input string' changes. Internal slot.")
+   (window-input-history :initform (list "") :accessor window-input-history
+                         :documentation "List of previous input strings.")
+   (window-input-history-position :initform 0
+                                  :accessor window-input-history-position)
+   (window-input-cursor :initform 0 :accessor window-input-cursor)
+   (window-input-function :initform #'identity
+                          :accessor window-input-function)))
+
+
+(defmethod initialize-instance :after ((win <Terminal-Window>) &key)
+  (unless (window-prompt-foreground win)
+    (setf (window-prompt-foreground win) (window-foreground win)))
+  (unless (window-prompt-background win)
+    (setf (window-prompt-background win) (window-background win)))
+  (unless (window-input-foreground win)
+    (setf (window-input-foreground win) (window-foreground win)))
+  (unless (window-input-background win)
+    (setf (window-input-background win) (window-background win))))
+
+
+(defmethod window-page-length ((win <Terminal-Window>))
+  (- (window-height win) 2
+     (max 1 (length (slot-value win 'window-input-rendered)))))
+
+
+(defmethod prepare-window :after ((win <Terminal-Window>))
+  ;; (let ((str (or (window-input-string win) ""))
+  ;;       (cur (window-input-cursor win)))
+  ;;   (cond
+  ;;     ((>= cur (length str))
+  ;;      (setf str (concatenate 'string str "{bg:white} {/}")))
+  ;;     (t
+  ;;      (setf str (concatenate 'string (if (zerop cur) "" (subseq str 0 cur))
+  ;;                             "{fg:black,bg:white}"
+  ;;                             (string (char str cur))
+  ;;                             "{/}"
+  ;;                             (subseq str (1+ cur))))))
+  (iterate
+    (with numlines = (length (slot-value win 'window-input-rendered)))
+    (for line in (slot-value win 'window-input-rendered))
+    (for i from 0 below numlines)
+    (if (zerop i)
+        (draw-string-at win (colourise (window-prompt win)
+                                       (window-prompt-foreground win)
+                                       (window-prompt-background win))
+                        1 (- (window-height win) 1 numlines)))
+    (draw-string-at win (colourise line (window-input-foreground win)
+                                   (window-input-background win))
+                    (if (zerop i) (+ (length (window-prompt win)) 1) 1)
+                    (+ i (- (window-height win) 1 numlines)))))
+
+
+(defmethod (setf window-input-string) :after (value (win <Terminal-Window>))
+  (render-input-string win))
+
+
+(defmethod render-input-string ((win <Terminal-Window>))
+  (let ((str0 (if (window-input-string win)
+                  (copy-seq (window-input-string win)))))
+    (cond
+      ((>= (window-input-cursor win) (length str0))
+       (setf str0 (concatenate 'string str0 (string (code-char 1)))))
+      ((and str0
+            (plusp (length str0)))
+       (setf (char str0 (window-input-cursor win))
+             (code-char 1)))
+      (t
+       (setf str0 (string (code-char 1)))))
+    ;;(break)
+    (let* ((str (concatenate 'string (window-prompt win) str0))
+           (width (- (window-width win) 2))
+           (lines nil))
+      (setf lines
+            (iterate
+              (while (plusp (length str)))
+              (for line = (subseq str 0 (min width (length str))))
+              (setf str (subseq str (min width (length str))))
+              ;;(format t "~S ~S~%" line str)
+              (if (find (code-char 1) line)
+                  (setf line (concatenate
+                              'string
+                              (subseq line 0 (position (code-char 1) line))
+                              (colourise
+                               (cond
+                                 ((and (window-input-string win)
+                                       (< (window-input-cursor win)
+                                          (length (window-input-string win))))
+                                  (string (char (window-input-string win)
+                                                (window-input-cursor win))))
+                                 (t
+                                  " "))
+                               (window-input-background win)
+                               (window-input-foreground win))
+                              (subseq line (1+ (position (code-char 1) line))))))
+              (collect line)))
+      (setf (nth 0 lines) (subseq (nth 0 lines) (length (window-prompt win))))
+      (setf (slot-value win 'window-input-rendered)
+            lines)
+      lines)))
+
+(defmethod send-string-to-terminal ((win <Terminal-Window>) &optional str)
+  (let ((result (funcall (window-input-function win)
+                         (or str (window-input-string win)))))
+    (typecase result
+      (null nil)
+      (string (add-message win result))
+      (list (dolist (line result)
+              (add-message win line)))
+      (otherwise nil))))
+
+
+(defmethod send-key-to-window :around ((win <Terminal-Window>) (k key) winx winy)
+  (declare (ignore winx winy))
+  (when (key-pressed k)
+    (let ((pagelen (- (window-height win) 2))
+	  (num-items (length (window-items win))))
+      (cond
+        ((graphic-char-p (key-c k))
+         (window-insert-character win (key-c k)))
+        ((eql :backspace (key-vk k))
+         (window-backspace-character win))
+        ((eql :delete (key-vk k))
+         (window-delete-character win))
+        ((eql :enter (key-vk k))
+         (send-string-to-terminal win)
+         (setf (window-input-cursor win) 0)
+         ;; (setf (nth (window-input-history-position win)
+         ;;            (window-input-history win))
+         ;;       (window-input-string win))
+         (setf (window-input-history win)
+               (append
+                (remove ""
+                        (append (window-input-history win)
+                                (list (window-input-string win)))
+                        :test #'string=)
+                (list "")))
+         (setf (window-input-history-position win)
+               (1- (length (window-input-history win))))
+         (setf (window-input-string win) nil))
+        ((eql :left (key-vk k))
+         (when (plusp (window-input-cursor win))
+           (decf (window-input-cursor win))
+           (render-input-string win)))
+        ((eql :right (key-vk k))
+         (when (< (window-input-cursor win) (length (window-input-string win)))
+           (incf (window-input-cursor win))
+           (render-input-string win)))
+        ((eql :home (key-vk k))
+         (setf (window-input-cursor win) 0)
+         (render-input-string win))
+        ((eql :end (key-vk k))
+         (setf (window-input-cursor win) (length (window-input-string win)))
+         (render-input-string win))
+        ((eql :up (key-vk k))
+         (when (plusp (window-input-history-position win))
+           ;; (setf (nth (window-input-history-position win)
+           ;;            (window-input-history win))
+           ;;       (window-input-string win))
+           (decf (window-input-history-position win))
+           (setf (window-input-string win)
+                 (nth (window-input-history-position win)
+                      (window-input-history win)))
+           (setf (window-input-cursor win) (length (window-input-string win)))
+           (render-input-string win)))
+        ((eql :down (key-vk k))
+         (when (< (window-input-history-position win)
+                  (1- (length (window-input-history win))))
+           ;; (setf (nth (window-input-history-position win)
+           ;;            (window-input-history win))
+           ;;       (window-input-string win))
+           (incf (window-input-history-position win))
+           (setf (window-input-string win)
+                 (nth (window-input-history-position win)
+                      (window-input-history win)))
+           (setf (window-input-cursor win) (length (window-input-string win)))
+           (render-input-string win)))
+        (t
+	 (return-from send-key-to-window (call-next-method))))
+      (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
+      (move-cursor-to win (window-offset win))
+      ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
+      ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
+      ;; 	    (window-offset win) (window-cursor win) num-items)
+      (prepare-window win)
+      (redraw-window-area win))
+    k))
+
+
+(defmethod window-insert-character ((win <Terminal-Window>) (ch character))
+  (let ((instr (window-input-string win))
+        (cur (window-input-cursor win)))
+    (cond
+      ((> (length instr) (* 3/4 (window-height win) (window-width win)))
+       ;; input too long -- ignore request to input more characters.
+       )
+      ((null instr)
+       (setf (window-input-string win) (string ch)))
+      ((>= cur (length instr))
+       (setf (window-input-string win) (concatenate 'string
+                                                    instr (string ch))))
+      ((zerop cur)
+       (setf (window-input-string win) (concatenate 'string
+                                                    (string ch) instr)))
+      (t
+       (format t "~S + ~S + ~S~%" (subseq instr 0 cur) (string ch)
+               (subseq instr cur))
+       (setf (window-input-string win)
+             (concatenate 'string (subseq instr 0 cur) (string ch)
+                          (subseq instr cur)))))
+    (incf (window-input-cursor win))
+    (render-input-string win)))
+
+
+(defmethod window-delete-character ((win <Terminal-Window>))
+  (let ((instr (window-input-string win))
+        (cur (window-input-cursor win)))
+    (cond
+      ((or (null instr)
+           (zerop (length instr))
+           (>= cur (length instr)))
+       )
+      ((zerop cur)
+       (setf (window-input-string win) (subseq instr 1)))
+      (t
+       (setf (window-input-string win)
+             (concatenate 'string (subseq instr 0 cur)
+                          (subseq instr (1+ cur))))))))
+
+
+
+(defmethod window-backspace-character ((win <Terminal-Window>))
+  (let ((instr (window-input-string win))
+        (cur (window-input-cursor win)))
+    (cond
+      ((or (null instr)
+           (zerop (length instr))
+           (zerop cur))
+       (return-from window-backspace-character nil))
+      ((>= cur (length instr))
+       (setf (window-input-string win) (subseq instr 0 (1- cur))))
+      (t
+       (setf (window-input-string win)
+             (concatenate 'string (subseq instr 0 (1- cur))
+                          (subseq instr cur)))))
+    (decf (window-input-cursor win))
+    (render-input-string win)))
+
+
+
+
+;;; <<Dialog-Window>> =========================================================
+
 
 (defvar *dialog->colour-table* nil
   "Hashtable DIALOG-BUTTON-VALUE -> COLOURNUM")
@@ -3827,10 +4114,7 @@ is initially positioned with top left corner TLX,TLY on the map console."
 
 
 
-;;;===========================================================================
-;;; (@> "Top-level functions")
-;;;===========================================================================
-
+;;; <<Top-level functions>> ===================================================
 
 
 (defun start-gui (&key
@@ -3846,11 +4130,11 @@ window.
 - WIDTH: Width of the TCOD root console, in characters. Default 80.
 - HEIGHT: Height of the TCOD root console, in characters. Default 25.
 - FONT-FILE: Path to the font file to use. The default is
-{defparameter dormouse:*default-font-file*}.
+[[*default-font-file*]].
 * Returns: None.
 * Description: Initialise the TCOD library and prepare for running
 the GUI.
-* See Also: {defun dormouse:main-gui-loop}"
+* See Also: [[main-gui-loop]]"
 ;;;		   +DEFAULT-FONT-FILE-CHARS-IN-COLUMNS?+))
 ;;; 		  (font-file-columns +DEFAULT-FONT-FILE-COLUMNS+)
 ;;; 		  (font-file-rows +DEFAULT-FONT-FILE-ROWS+)
@@ -3887,6 +4171,9 @@ the GUI.
 	(console-new width height)) ; must be same size as ROOT
   (console-clear *root*))
 
+
+(defun legal-window-coordinates? (win x y)
+  (tcod:legal-console-coordinates? (window-console win) x y))
 
 
 (defun process-windows ()

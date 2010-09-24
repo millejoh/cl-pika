@@ -30,6 +30,7 @@
 (defvar *smallvp* nil)
 (defvar *listwin* nil)
 (defvar *alertwin* nil)
+(defvar *termwin* nil)
 (defvar *custom-colours*
   `((:green 		68 158 53)
     (:red 		151 26 26)
@@ -49,7 +50,7 @@ COLOURNAME is a keyword that will be associated with the new colour.
 R, G and B are byte values (0-255) that define the new colour.")
 
 (defvar *maze-file* "maze.txt")
-(defvar *font-file* "MDA9x14.png")
+(defvar *font-file* "Kai-1280x400.png")
 
 ;;; Modify default behaviour of base window class and list windows, so
 ;;; that they print messages on the bottom of the screen giving information
@@ -64,8 +65,8 @@ R, G and B are byte values (0-255) that define the new colour.")
                      (if *alt* #\A #\space)
                      parm))
     (otherwise
-     (console-print-right *root* 0 (1- (console-get-height *root*))
-                          :set "Window ~A received event ~S at (~D, ~D) "
+     (console-print *root* 0 (1- (console-get-height *root*))
+                          "Window ~A received event ~S at (~D, ~D) "
                           win data winx winy))))
 
 
@@ -298,6 +299,9 @@ R, G and B are byte values (0-255) that define the new colour.")
     (make-instance '<Window> :tlx 50 :tly 30 :width 20 :height 12
 		   :title "win2" :foreground :yellow
 		   :background :dark-blue)
+    (make-instance '<Terminal-Window> :tlx 5 :tly 12 :width 35 :height 8
+                   :title "Terminal" :foreground :white :background
+                   :dark-slate-gray :prompt "==>")
     (setf *alertwin*
 	  (make-instance '<Alert-Window> :tlx 6 :tly 15 :width 20 :height 8
 			 :title "Alert!" :foreground :yellow :background :red
@@ -337,7 +341,10 @@ R, G and B are byte values (0-255) that define the new colour.")
     (add-message *msgwin* "Click and drag to move the map around in the background.")
     (add-message *msgwin* "Click the active text in the 'Dialog' window.")
     (add-message *msgwin* "Drag in the small green-and-pink window to view other parts of the background map.")
-    (add-message *msgwin* "Press cursor keys to move the yellow '@' around the maze.")
+    (add-message *msgwin* "Press cursor keys to move the yellow '@' around the
+    maze.")
+    (add-message *termwin* "Type some text and press enter.")
+    (add-message *termwin* "Press up and down to navigate the input history.")
     (main-gui-loop)))
 
 
