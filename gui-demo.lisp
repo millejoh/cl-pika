@@ -97,7 +97,7 @@ R, G and B are byte values (0-255) that define the new colour.")
     (loop for x from 0 below (map-xdim win)
        do (loop for y from 0 below (map-ydim win) do
 	       (let ((it (char (nth (1+ y) maze) (1+ x))))
-		 (cond 
+		 (cond
 		   ((equal #\# it)
 		    (map-draw-char-at win #\# x y :fg :light-blue
 				      :redraw nil))))))
@@ -112,9 +112,9 @@ R, G and B are byte values (0-255) that define the new colour.")
         (old-cy (cursory win)))
     (when (key-pressed k)
       (case (key-vk k)
-        (:up (decf (cursory win))) 
-        (:down (incf (cursory win))) 
-        (:left (decf (cursorx win))) 
+        (:up (decf (cursory win)))
+        (:down (incf (cursory win)))
+        (:left (decf (cursorx win)))
         (:right (incf (cursorx win)))
         (:char
          (setf (cursor-char win) (key-c k))
@@ -272,8 +272,8 @@ R, G and B are byte values (0-255) that define the new colour.")
     (dolist (col *custom-colours*)
       (destructuring-bind (name r g b) col
 	(tcod:make-colour name r g b)))
-    
-    (setf width (tcod:console-get-width tcod:*root*)) 
+
+    (setf width (tcod:console-get-width tcod:*root*))
     (setf height (tcod:console-get-height tcod:*root*))
     ;; Make viewport. Make it slightly shorter than HEIGHT to
     ;; allow messages on the bottom line of the root console.
@@ -282,15 +282,15 @@ R, G and B are byte values (0-255) that define the new colour.")
 				    :background :black
 				    :width width :height (1- height)))
     (setf *smallvp* (make-instance '<Viewport> :tlx 58 :tly 1 :width 12
-				 :height 12
-				 :foreground :pink :background :green
-				 ))
+                                   :height 12
+                                   :foreground :pink :background :green
+                                   ))
     (share-map *smallvp* *viewport* 15 13)
     (setf *tipwin* (make-instance '<MyTooltip-Window> :foreground :black
-				:background :yellow
-				:tlx 6 :tly 25 :width 30 :height 11
-				:title "Tooltips"
-                                :transparency +OPAQUE+))
+                                  :background :yellow
+                                  :tlx 6 :tly 25 :width 30 :height 11
+                                  :title "Tooltips"
+                                  :transparency +OPAQUE+))
     ;; Make windows
     (setf *dlgwin*
 	  (make-instance '<MyDialog-Window> :tlx 8 :tly 3 :width 25 :height 8
@@ -299,9 +299,10 @@ R, G and B are byte values (0-255) that define the new colour.")
     (make-instance '<Window> :tlx 50 :tly 30 :width 20 :height 12
 		   :title "win2" :foreground :yellow
 		   :background :dark-blue)
-    (make-instance '<Terminal-Window> :tlx 5 :tly 12 :width 35 :height 8
-                   :title "Terminal" :foreground :white :background
-                   :dark-slate-gray :prompt "==>")
+    (setf *termwin*
+          (make-instance '<Terminal-Window> :tlx 5 :tly 12 :width 35 :height 8
+                         :title "Terminal" :foreground :white :background
+                         :dark-slate-gray :prompt "==>"))
     (setf *alertwin*
 	  (make-instance '<Alert-Window> :tlx 6 :tly 15 :width 20 :height 8
 			 :title "Alert!" :foreground :yellow :background :red
@@ -335,8 +336,8 @@ R, G and B are byte values (0-255) that define the new colour.")
     (add-message *msgwin* "Press 'Q' to quit.")
     (add-message *msgwin* "{yellow}The window where the mouse is hovering has focus.{/}")
     (add-message *msgwin* "Move windows by dragging on their titles.")
-    (add-message *msgwin* "Resize by dragging in bottom right corner of window frame.")    
-    (add-message *msgwin* "Close by clicking 'X' in top right corner.")    
+    (add-message *msgwin* "Resize by dragging in bottom right corner of window frame.")
+    (add-message *msgwin* "Close by clicking 'X' in top right corner.")
     (add-message *msgwin* "Type in the list window to filter by a text string.")
     (add-message *msgwin* "Click and drag to move the map around in the background.")
     (add-message *msgwin* "Click the active text in the 'Dialog' window.")
