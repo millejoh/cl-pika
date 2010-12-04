@@ -10,4 +10,4 @@
     :author "Paul Sexton <eeeickythump@gmail.com>"
     :components
     ((:file "dormouse"))
-    :depends-on ("tcod" "iterate"))
+    :depends-on ("tcod" "iterate" "cl-ppcre"))

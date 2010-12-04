@@ -31,6 +31,7 @@
 (defvar *listwin* nil)
 (defvar *alertwin* nil)
 (defvar *termwin* nil)
+(defvar *htwin* nil)
 (defvar *custom-colours*
   `((:green 		68 158 53)
     (:red 		151 26 26)
@@ -51,6 +52,18 @@ R, G and B are byte values (0-255) that define the new colour.")
 
 (defvar *maze-file* "maze.txt")
 (defvar *font-file* "Kai-1280x400.png")
+
+(defvar *ht-database* nil)
+(defvar *hypertext-fg-colour* :light-blue)
+(defparameter *initial-ht-content*
+  '(("Start"
+     "I do not like green eggs and [ham].")
+    ("Green eggs"
+     "Eggs that are green.")
+    ("Bacon"
+     "Cured pork product.")
+    ("Ham"
+     (= "Bacon"))))
 
 ;;; Modify default behaviour of base window class and list windows, so
 ;;; that they print messages on the bottom of the screen giving information
@@ -262,6 +275,15 @@ R, G and B are byte values (0-255) that define the new colour.")
 
 
 
+(defun initialise-hypertext-database ()
+  (setf *ht-database* (make-hash-table :test 'equal))
+  (dolist (dat *initial-ht-content*)
+    (destructuring-bind (topic text) dat
+      (setf (gethash (string-upcase topic) *ht-database*) text)))
+  (make-autolinks-in-hypertext-database
+   *ht-database* :fg *hypertext-fg-colour*))
+
+
 (defun gui-demo ()
   (let ((width 0)
 	(height 0))
@@ -329,6 +351,20 @@ R, G and B are byte values (0-255) that define the new colour.")
     (setf *statwin*
           (make-instance '<Statistics-Window> :tlx 3 :tly 43 :width 12 :height 4
                          :background :dark-grey))
+
+    (initialise-hypertext-database)
+
+    (setf *htwin*
+          (make-instance '<Hypertext-Window> :tlx 12 :tly 30 :width 30
+                         :height 12 :title "Hypertext" :foreground :white
+                         :background :dark-blue
+                         :hyperlink-fg *hypertext-fg-colour*
+                         :start-topic "Start"
+                         :lookup-function
+                         (lambda (topic) (gethash (string-upcase topic)
+                                             *ht-database*))))
+
+
     (add-item *menuwin* "item1" "Menu item 1" (make-simple-key #\1))
     (add-item *menuwin* "item2" "Menu item 2" (make-simple-key #\2))
     (add-item *menuwin* "item3" "Menu item 3" (make-simple-key #\3))

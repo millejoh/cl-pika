@@ -29,31 +29,34 @@
 ;;;; Table of contents
 ;;;; =================
 ;;;;
-;;;; (Emacs users: linkd-mode will allow you to navigate using these
+;;;; (Emacs users: org-mode will allow you to navigate using these
 ;;;; hyperlinks)
 ;;;;
-;;;; (@> "Package definition")
+;;;; [[Package definition]]
 ;;;; (@> "Utility functions")
 ;;;; (@> "Constants")
 ;;;; (@> "Global variables")
 ;;;; (@> "Keys")
 ;;;; (@> "Colourising strings")
 
-;;;; - (@> "Window")
+;;;; - [[Window]]
 ;;;;      - [[List Window]]
-;;;;           - (@> "Filtered-Window")
-;;;;           - (@> "Menu-Window")
+;;;;           - [[Filtered Window]]
+;;;;           - [[Menu Window]]
 ;;;;           - [[Log Window]]
+;;;;             - [[Terminal Window]]
+;;;;           - [[Pager Window]]
+;;;;           - [[Hypertext Window]]
 ;;;;           - [[Terminal Window]]
-;;;;      - (@> "Modal-Window")
-;;;;           - (@> "Alert-Window")
-;;;;           - (@> "Yes/No-Window")
-;;;;      - (@> "Dialog-Window")
-;;;;           - (@> "Tooltip-Window")
-;;;;                uses (@> "Floating-Window")
-;;;;      - (@> "Background-Window")
+;;;;      - [[Modal Window]]
+;;;;           - [[Alert Window]]
+;;;;           - [[Yes/No Window]]
+;;;;      - [[Dialog Window]]
+;;;;           - [[Tooltip Window]]
+;;;;                uses [[Floating Window]]
+;;;;      - [[Background window]]
 ;;;;      - (@> "Ghost-Window")
-;;;;      - (@> "Window-With-Context-Menu")
+;;;;      - [[Window With Context Menu]]
 ;;;;      - (@> "Viewport")
 ;;;;
 ;;;;
@@ -71,7 +74,7 @@
 ;;;;                        "Example:" "Notes:" "Description:"))
 ;;;;
 
-;;;; (@> "Package definition") ================================================
+;;; <<Package definition>> ====================================================
 
 (in-package :cl-user)
 
@@ -274,8 +277,19 @@ The latest version of DORMOUSE can be found at:
            #:add-message
            #:add-message-and-redraw
            #:bottom-message
+           ;; Pager window
+           #:<Pager-Window>
+           ;; [[Hypertext window]] ============================================
+           #:<Hypertext-Window>
+           #:make-autolinks-in-hypertext-database
+           #:hyperlink-foreground-colour
+           #:open-hypertext-topic
            ;; Terminal window
            #:<Terminal-Window>
+           #:window-input-function
+           #:window-echo-input?
+           #:window-input-active?
+           #:window-input-history
            ;; Viewports
            #:<Viewport>
            #:clear-map
@@ -563,11 +577,13 @@ documentation for {defun dormouse:make-coloured-string} for details.
 ;;; (draw-string-at mywin ``Hello, {blue}world!{/}'' 1 1 :fg :green)
 * See Also:
 - {defun dormouse:make-coloured-string}"))
-(defgeneric colour->control-string (col background?)
+(defgeneric colour->control-string (col background? &optional win)
   (:documentation
    "* Arguments:
-- COL: A colour specifier (keyword, number, or string.)
-- BACKGROUND?: Boolean.
+- COL :: A colour specifier (keyword, number, or string.)
+- BACKGROUND? :: Boolean.
+- WIN :: Optional. The window on which the colour control string will
+  be printed.
 
 * Description:
 Given a colour, returns a string of control codes which will change a
@@ -698,6 +714,9 @@ transparent.")
 transparent (invisible).")
 (defconstant +DIMMED+ 75
   "Value of =WINDOW-TRANSPARENCY= for a window that is dimmed.")
+(defconstant +BOLD-FACTOR+ 1.4
+  "Scalar (number) by which a colour is multiplied to produce a 'bold'
+version of that colour.")
 
 
 ;;;; <<Global variables>> =====================================================
@@ -1003,6 +1022,12 @@ be ignored (treated as zero)."
     (finally (return (list text)))))
 
 
+(defun all-hashtable-keys (hashtable)
+  "Return a list of every key in HASHTABLE."
+  (iterate
+    (for (key nil) in-hashtable hashtable)
+    (collect key)))
+
 
 ;;; <<Keys>> ==================================================================
 
@@ -1186,7 +1211,9 @@ Finally:
                          :win win)))))))
 
 
-(defmethod colour->control-string ((col integer) background?)
+(defmethod colour->control-string ((col integer) background?
+                                   &optional win)
+  (declare (ignore win))
   (multiple-value-bind (r g b) (decompose-colour col)
     (format nil "~C~C~C~C"
             (colctrl->char (if background? :COLCTRL-BACK-RGB :COLCTRL-FORE-RGB))
@@ -1194,12 +1221,24 @@ Finally:
             (code-char (max g 1))
             (code-char (max b 1)))))
 
-(defmethod colour->control-string ((col symbol) background?)
-  (colour->control-string (colour col) background?))
+
+(defmethod colour->control-string ((col symbol) background?
+                                   &optional win)
+  (colour->control-string (colour col) background? win))
 
 
-(defmethod colour->control-string ((col string) background?)
-  (colour->control-string (string->colournum col) background?))
+(defmethod colour->control-string ((col string) background?
+                                   &optional win)
+  (cond
+    ((and win
+          (find (string-upcase col) '("B" "BOLD") :test #'string=))
+     (colour->control-string
+      (tcod:colour-multiply-scalar
+       (tcod:colour (if background? (window-background win)
+                        (window-foreground win)))
+       +BOLD-FACTOR+) background? win))
+    (t
+     (colour->control-string (string->colournum col) background? win))))
 
 
 (defun string->tcod-colour-codes (str &optional win)
@@ -1222,8 +1261,8 @@ colour prefixed by one of the labels FOREGROUND:, BACKGROUND:, FG:, or BG:."
          ;; Therefore, if WIN is supplied, reset the console colours to the
          ;; remembered default colours for the window object, prior to
          ;; outputting COLCTRL-STOP.
-          (format s (colour->control-string (window-foreground win) nil))
-          (format s (colour->control-string (window-background win) t)))
+          (format s (colour->control-string (window-foreground win) nil win))
+          (format s (colour->control-string (window-background win) t win)))
          (t
           (format s "~C" (colctrl->char :COLCTRL-STOP)))))
        ;;   (console-set-foreground-colour (window-console win)
@@ -1242,7 +1281,7 @@ colour prefixed by one of the labels FOREGROUND:, BACKGROUND:, FG:, or BG:."
               (background (or (getf props :background)
                               (getf props :bg))))
          (when foreground
-           (format s (colour->control-string foreground nil)))
+           (format s (colour->control-string foreground nil win)))
            ;; (multiple-value-bind
            ;;       (fr fg fb) (decompose-colour (string->colournum foreground))
            ;;   (format s "~C~C~C~C"
@@ -1251,7 +1290,7 @@ colour prefixed by one of the labels FOREGROUND:, BACKGROUND:, FG:, or BG:."
            ;;           (code-char (max fg 1))
            ;;           (code-char (max fb 1)))))
          (when background
-           (format s (colour->control-string background t))))))))
+           (format s (colour->control-string background t win))))))))
            ;; (multiple-value-bind
            ;;       (br bg bb) (decompose-colour (string->colournum background))
            ;;   (format s "~C~C~C~C"
@@ -1883,7 +1922,7 @@ slot (0-100) to a FADE value (0-1) accepted by the TCOD library."
 
      (when (window-can-resize? win)
          (console-set-char (window-console win) (1- (window-width win))
-                           (1- (window-height win)) 188)))
+                           (1- (window-height win)) 29)))
     (t
      (console-rect (window-console win) 0 0
                    (window-width win) (window-height win) t :set)))
@@ -2418,9 +2457,8 @@ to be redrawn."
 
 
 
-;;;===========================================================================
-;;; (@> "Modal-Window")
-;;;===========================================================================
+;;; <<Modal Window>> ==========================================================
+
 
 (defclass <Modal-Window> (<Window>)
   ()
@@ -2450,9 +2488,7 @@ can be sent to any other windows."
 
 
 
-;;;===========================================================================
-;;; (@> "Alert-Window")
-;;;===========================================================================
+;;; <<Alert Window>> ==========================================================
 
 
 (defclass <Alert-Window> (<Modal-Window> <Log-Window>)
@@ -2468,9 +2504,7 @@ can be sent to any other windows."
     (add-message win (window-initial-text win))))
 
 
-;;;===========================================================================
-;;; (@> "Yes/No-Window")
-;;;===========================================================================
+;;; <<Yes/No Window>> =========================================================
 
 
 (defclass <Yes/No-Window> (<Modal-Window> <Dialog-Window>)
@@ -2554,9 +2588,8 @@ mouse or keyboard. All such messages pass through to the window below it."))
     (typep win '<Ghost-Window>))
 
 
-;;;===========================================================================
-;;; (@> "Background-Window")
-;;;===========================================================================
+;;; <<Background window>> =====================================================
+
 
 (defclass <Background-Window> (<Window>)
   ((window-can-resize? :initform nil)
@@ -2813,9 +2846,7 @@ The enter key selects the item under the cursor."))
 
 
 
-;;;===========================================================================
-;;; (@> "Filtered-Window")
-;;;===========================================================================
+;;; <<Filtered Window>> =======================================================
 
 
 (defclass <Filtered-Window> (<List-Window>)
@@ -2923,9 +2954,8 @@ Pressing DELETE will erase all characters in FILTER-STRING."))
 
 
 
-;;;===========================================================================
-;;; (@> "Menu-Window")
-;;;===========================================================================
+;;; <<Menu Window>> ===========================================================
+
 
 (defclass <Menu-Window> (<List-Window>)
   ((window-framed? :initform nil)
@@ -2987,44 +3017,48 @@ moves the cursor to that item."))
 
 
 
-;;;===========================================================================
-;;; (@> "Window-With-Context-Menu")
-;;;===========================================================================
+;;; <<Window with Context Menu>> ==============================================
+
+
+(defparameter +DEFAULT-CONTEXT-MENU-INITARGS+
+  '(:tlx 0 :tly 0 :width 20 :height 8
+    :title "Context"
+    :foreground :light-blue
+    :background :dark-grey))
 
 
 (defclass <Window-With-Context-Menu> (<Window>)
   ((window-raise-children-with-parent? :initform nil)
-  (context-menu :accessor context-menu :initform nil
-                :documentation "Context menu window associated with this
+   (context-menu :accessor context-menu :initform nil
+                 :documentation "Context menu window associated with this
 window.")
-  (context-menu-class :accessor context-menu-class :initform '<Context-Menu>))
+   (context-menu-class :accessor context-menu-class :initform '<Context-Menu>)
+   (context-menu-initargs :initform +DEFAULT-CONTEXT-MENU-INITARGS+
+                          :accessor context-menu-initargs))
   (:documentation
-     "Window where right-clicking brings up a menu of commands that the user
+   "Window where right-clicking brings up a menu of commands that the user
 can choose to apply to the item that was clicked on."))
 
 
 (defclass <Context-Menu> (<Menu-Window>)
   ((window-transparency :initform +OPAQUE+)
+   (window-width :initform 15)
+   (window-height :initform 8)
    (context-item :accessor context-item :initform nil
                  :documentation "Item (eg thing) which is the 'context' of the
 current window activation.")))
 
 
-
+(defmethod make-context-menu ((win <Window-With-Context-Menu>))
+  (setf (context-menu win)
+        (apply #'make-instance (context-menu-class win)
+               :hidden? t (context-menu-initargs win)))
+  (push (context-menu win) (window-children win)))
 
 
 (defmethod initialize-instance :after ((win <Window-With-Context-Menu>)
-                                       &key
-                                       (context-menu-initargs
-                                        '(:tlx 0 :tly 0 :width 15 :height 8
-                                          :title "Context"
-                                          :foreground :light-blue
-                                          :background :dark-grey))
-                                       &allow-other-keys)
-  (setf (context-menu win)
-        (apply #'make-instance (context-menu-class win)
-               :hidden? t context-menu-initargs))
-  (push (context-menu win) (window-children win)))
+                                       &key)
+  (make-context-menu win))
 
 
 
@@ -3041,14 +3075,16 @@ current window activation.")))
 (defmethod raise-window :before ((win <Window-With-Context-Menu>)
                                  &key redraw &allow-other-keys)
   (declare (ignore redraw))
-  (unless (window-hidden? (context-menu win))
+  (unless (or (null (context-menu win))
+              (window-hidden? (context-menu win)))
     (hide-window (context-menu win))))
 
 
 (defmethod hide-window :before ((win <Window-With-Context-Menu>)
                                  &key redraw &allow-other-keys)
   (declare (ignore redraw))
-  (unless (window-hidden? (context-menu win))
+  (unless (or (null (context-menu win))
+              (window-hidden? (context-menu win)))
     (hide-window (context-menu win))))
 
 
@@ -3227,6 +3263,16 @@ refreshed.")
   (console-flush))
 
 
+(defmethod fill-to-end-of-window ((win <Log-Window>))
+  (let ((hgt (+ -2 (window-height win)))
+        (num-items (length (window-items win))))
+    (when (< num-items hgt)
+      (dotimes (i (- hgt num-items))
+        (add-item win "" "" nil))
+      (move-cursor-to-end win))))
+
+
+
 ;;;     (setf (window-offset win) (- (length (window-items win))
 ;;;                              (- (window-height win) 2)))
 ;;;     (setf (window-cursor win) (1- (length (window-items win))))
@@ -3239,7 +3285,8 @@ refreshed.")
 
 (defmethod clear-messages ((win <Log-Window>))
   (setf (window-raw-messages win) nil)
-  (setf (window-items win) nil))
+  (setf (window-items win) nil)
+  (move-cursor-to win 0))
 
 (defun bottom-message (fmt &rest args)
   "* Arguments:
@@ -3265,6 +3312,201 @@ onto the bottom line of the root console.
                          (apply #'format nil fmt args))))
 
 
+;;; <<Pager Window>> ==========================================================
+
+
+(defclass <Pager-Window> (<Log-Window>)
+  ())
+
+
+(defmethod add-browser-line ((win <Pager-Window>) line)
+  (typecase line
+    (string  (add-message win line))
+    (list
+     (destructuring-bind (item desc) line
+       (declare (ignore item))
+       (add-message win desc)))))
+
+
+(defmethod clear-browser-lines ((win <Pager-Window>))
+    (clear-messages win))
+
+
+(defmethod send-key-to-window :around ((win <Pager-Window>)
+				       (k key) winx winy)
+  (declare (ignore winx winy))
+  (when (key-pressed k)
+    (case (key-vk k)
+      ((:enter :kpenter)
+       nil)
+      (:escape
+       (hide-window win))
+      (otherwise
+       (call-next-method)))))
+
+
+;;; <<Hypertext window>> ======================================================
+
+
+(defclass <Hypertext-Window> (<Dialog-Window> <Pager-Window>)
+  ((hypertext-lookup-function
+    :initform nil
+    :initarg :lookup-function
+    :accessor hypertext-lookup-function
+    :documentation "Function that takes a single string as its argument.
+Returns the text of the hypertext database entry whose title is the same
+as the string. Returns nil if the topic does not exist.")
+   (hyperlink-foreground-colour
+    :initform :blue :initarg :hyperlink-fg
+    :accessor hyperlink-foreground-colour)
+   (hypertext-start-topic :initform "Start" :initarg :start-topic
+                          :accessor hypertext-start-topic)
+   (hypertext-history :initform nil :accessor hypertext-history))
+  (:documentation
+   "Press BACKSPACE or LEFT arrow to go back to the last topic.
+Press HOME to go back to the 'root' or 'start' topic."))
+
+
+(defmethod hypertext-current-topic ((win <Hypertext-Window>))
+  (car (hypertext-history win)))
+
+
+(defmethod window-title ((win <Hypertext-Window>))
+  (let ((topic (car (hypertext-history win))))
+    (format nil "~A: ~:(~A~)"
+            (slot-value win 'window-title)
+            topic)))
+
+
+(defun mark-hyperlinks-in-string (str &key (fg :blue))
+  (cl-ppcre:regex-replace-all "\\[(.+?)\\]" str
+                              (format nil "{fg:~A,click:\\1}\\1{/}" fg)
+                              :preserve-case t))
+
+
+(defun word-unwrap (str &key (no-wrap-prefix "|"))
+  "* Description
+Given a string, gets rid of line breaks within 'paragraphs' in the string.
+Paragraphs are defined as groups of lines separated by blank lines.
+If a line begins with the string NO-WRAP-PREFIX, it is left as is."
+  (with-input-from-string (s str)
+    (let ((lines nil))
+      (iterate
+        (with accum = nil)
+        (for line = (read-line s nil :eof))
+        (while (not (eq :eof line)))
+        (print line)
+        (cond
+          ((zerop (length line))
+           (when accum
+             (push accum lines)
+             (setf accum nil))
+           (push line lines))
+          ((eq 0 (search no-wrap-prefix line))
+           (when accum
+             (push accum lines)
+             (setf accum nil))
+           (push line lines))
+          (t
+           (setf accum (concatenate
+                        'string (or accum "") line " "))))
+        (finally
+         (if accum (push accum lines))))
+      (apply #'concatenate 'string
+             (iterate
+               (for line in (reverse lines))
+               (collect (format nil "~A~%" line)))))))
+
+
+(defmethod open-hypertext-topic ((win <Hypertext-Window>) topic)
+  "If TEXT takes the form (= NEWTOPIC), then we are redirected
+to NEWTOPIC.
+If TEXT is a function, it will be called with no arguments, and
+should return a string which will be used as the text of the topic."
+  (let ((text (funcall (hypertext-lookup-function win) topic)))
+    (cond
+      ((null topic)
+       nil)
+      ((null text)
+       nil)
+      ((and (listp text)
+            (eql (car text) '=)
+            (stringp (second text)))
+       (open-hypertext-topic win (second text)))
+      ((or (stringp text)
+           (functionp text))
+       (unless (equal topic (hypertext-current-topic win))
+         (push topic (hypertext-history win)))
+       (clear-messages win)
+       (add-message-and-redraw
+        win (mark-hyperlinks-in-string
+             (word-unwrap
+              (if (functionp text) (funcall text) text))))))))
+
+
+(defmethod initialize-instance :after ((win <Hypertext-Window>) &key)
+  (unless (hypertext-current-topic win)
+    (open-hypertext-topic win (hypertext-start-topic win))))
+
+
+(defun make-autolinks-in-hypertext-database (db &key (fg :blue))
+  "* Arguments
+- DB :: A hashtable of topic titles keyed to text strings.
+* Returns
+Nil.
+* Description
+Iterates through every topic in the hashtable DB. Within the text of each
+topic, 'marks up' any unmarked occurrence of the title of another topic
+in the same database. Finally, converts all marked hyperlinks to
+the internal format recognised by the GUI."
+  (iterate
+    (with topics = (sort (remove-if-not #'stringp (all-hashtable-keys db))
+                         #'> :key #'length))
+    (for (topic text) in-hashtable db)
+    (unless (stringp text) (next-iteration))
+    (iterate
+      (with matches = nil)
+      (for topic2 in topics)
+      (if (equal topic2 topic) (next-iteration))
+      (if (some (lambda (match) (search topic2 match)) matches)
+          (next-iteration))
+      (multiple-value-bind (newtext matched?)
+          (cl-ppcre:regex-replace-all
+           ;; The (?i) turns case sensitivity off
+           (concatenate 'string "(?i)([^[}])(" topic2 ")([^]{])")
+           text (format nil "\\1{fg:~A,click:\\2}\\2{/}\\3" fg)
+           :preserve-case t)
+        (setf text newtext)
+        (if matched? (push topic2 matches))))
+    (setf text (mark-hyperlinks-in-string text :fg fg))
+    (setf (gethash topic db) text)))
+
+
+(defmethod send-to-window ((win <Hypertext-Window>) (data (eql :dialog))
+                                   topic winx winy)
+  (format t "Window ~A received topic ~S~%" win topic)
+  (open-hypertext-topic win topic))
+
+
+(defmethod send-key-to-window :around ((win <Hypertext-Window>)
+                                       (k key) winx winy)
+  (declare (ignore winx winy))
+  (when (key-pressed k)
+    (print k)
+    (cond
+      ((and (hypertext-history win)
+            (find (key-vk k) '(:backspace :left :kp4)))
+       (pop (hypertext-history win))
+       (open-hypertext-topic win (hypertext-current-topic win))
+       k)
+      ((eql (key-vk k) :home)
+       (open-hypertext-topic win (hypertext-start-topic win))
+       k)
+      (t
+       (call-next-method)))))
+
+
+
 ;;; <<Terminal Window>> =======================================================
 
 
@@ -3280,6 +3522,13 @@ onto the bottom line of the root console.
                              :accessor window-input-foreground)
    (window-input-background :initform nil :initarg :input-bg
                              :accessor window-input-background)
+   (window-echo-input? :initform t :initarg :echo-input?
+                       :accessor window-echo-input?
+                       :documentation "After enter is pressed, should the
+input be 'printed' in the window?")
+   (window-input-active? :initform t :type (member t nil :transient)
+                         :accessor window-input-active?
+                         :documentation "")
    (window-input-string :initform nil :accessor window-input-string)
    (window-input-rendered :initform nil
                           :documentation "List of strings, updated whenever
@@ -3290,7 +3539,10 @@ the current 'input string' changes. Internal slot.")
                                   :accessor window-input-history-position)
    (window-input-cursor :initform 0 :accessor window-input-cursor)
    (window-input-function :initform #'identity
-                          :accessor window-input-function)))
+                          :accessor window-input-function
+                          :documentation
+                          "Function which takes a string argument. Called
+when a line of input is entered in the window.")))
 
 
 (defmethod initialize-instance :after ((win <Terminal-Window>) &key)
@@ -3305,35 +3557,27 @@ the current 'input string' changes. Internal slot.")
 
 
 (defmethod window-page-length ((win <Terminal-Window>))
-  (- (window-height win) 2
-     (max 1 (length (slot-value win 'window-input-rendered)))))
+  (if (window-input-active? win)
+      (- (window-height win)
+         (max 1 (length (slot-value win 'window-input-rendered))))
+      (call-next-method)))
 
 
 (defmethod prepare-window :after ((win <Terminal-Window>))
-  ;; (let ((str (or (window-input-string win) ""))
-  ;;       (cur (window-input-cursor win)))
-  ;;   (cond
-  ;;     ((>= cur (length str))
-  ;;      (setf str (concatenate 'string str "{bg:white} {/}")))
-  ;;     (t
-  ;;      (setf str (concatenate 'string (if (zerop cur) "" (subseq str 0 cur))
-  ;;                             "{fg:black,bg:white}"
-  ;;                             (string (char str cur))
-  ;;                             "{/}"
-  ;;                             (subseq str (1+ cur))))))
-  (iterate
-    (with numlines = (length (slot-value win 'window-input-rendered)))
-    (for line in (slot-value win 'window-input-rendered))
-    (for i from 0 below numlines)
-    (if (zerop i)
-        (draw-string-at win (colourise (window-prompt win)
-                                       (window-prompt-foreground win)
-                                       (window-prompt-background win))
-                        1 (- (window-height win) 1 numlines)))
-    (draw-string-at win (colourise line (window-input-foreground win)
-                                   (window-input-background win))
-                    (if (zerop i) (+ (length (window-prompt win)) 1) 1)
-                    (+ i (- (window-height win) 1 numlines)))))
+  (when (window-input-active? win)
+    (iterate
+      (with numlines = (length (slot-value win 'window-input-rendered)))
+      (for line in (slot-value win 'window-input-rendered))
+      (for i from 0 below numlines)
+      (if (zerop i)
+          (draw-string-at win (colourise (window-prompt win)
+                                         (window-prompt-foreground win)
+                                         (window-prompt-background win))
+                          1 (- (window-height win) 1 numlines)))
+      (draw-string-at win (colourise line (window-input-foreground win)
+                                     (window-input-background win))
+                      (if (zerop i) (+ (length (window-prompt win)) 1) 1)
+                      (+ i (- (window-height win) 1 numlines))))))
 
 
 (defmethod (setf window-input-string) :after (value (win <Terminal-Window>))
@@ -3384,92 +3628,114 @@ the current 'input string' changes. Internal slot.")
             lines)
       lines)))
 
+
 (defmethod send-string-to-terminal ((win <Terminal-Window>) &optional str)
-  (let ((result (funcall (window-input-function win)
-                         (or str (window-input-string win)))))
-    (typecase result
-      (null nil)
-      (string (add-message win result))
-      (list (dolist (line result)
-              (add-message win line)))
-      (otherwise nil))))
+  (funcall (window-input-function win)
+           (or str
+               (window-input-string win)
+               "")))
 
 
-(defmethod send-key-to-window :around ((win <Terminal-Window>) (k key) winx winy)
+(defmethod send-string-to-terminal :around ((win <Terminal-Window>)
+                                            &optional str)
+  (declare (ignore str))
+  (let ((retval (call-next-method)))
+    (when (window-echo-input? win)
+      (typecase retval
+        (null nil)
+        (string (add-message win retval))
+        (list (dolist (line retval)
+                (add-message win line)))
+        (otherwise nil)))
+    retval))
+
+
+(defmethod send-key-to-window :around ((win <Terminal-Window>) (k key)
+                                       winx winy)
   (declare (ignore winx winy))
-  (when (key-pressed k)
-    (let ((pagelen (- (window-height win) 2))
-          (num-items (length (window-items win))))
-      (cond
-        ((graphic-char-p (key-c k))
-         (window-insert-character win (key-c k)))
-        ((eql :backspace (key-vk k))
-         (window-backspace-character win))
-        ((eql :delete (key-vk k))
-         (window-delete-character win))
-        ((eql :enter (key-vk k))
-         (send-string-to-terminal win)
-         (setf (window-input-cursor win) 0)
-         ;; (setf (nth (window-input-history-position win)
-         ;;            (window-input-history win))
-         ;;       (window-input-string win))
-         (setf (window-input-history win)
-               (append
-                (remove ""
-                        (append (window-input-history win)
-                                (list (window-input-string win)))
-                        :test #'string=)
-                (list "")))
-         (setf (window-input-history-position win)
-               (1- (length (window-input-history win))))
-         (setf (window-input-string win) nil))
-        ((eql :left (key-vk k))
-         (when (plusp (window-input-cursor win))
-           (decf (window-input-cursor win))
-           (render-input-string win)))
-        ((eql :right (key-vk k))
-         (when (< (window-input-cursor win) (length (window-input-string win)))
-           (incf (window-input-cursor win))
-           (render-input-string win)))
-        ((eql :home (key-vk k))
-         (setf (window-input-cursor win) 0)
-         (render-input-string win))
-        ((eql :end (key-vk k))
-         (setf (window-input-cursor win) (length (window-input-string win)))
-         (render-input-string win))
-        ((eql :up (key-vk k))
-         (when (plusp (window-input-history-position win))
-           ;; (setf (nth (window-input-history-position win)
-           ;;            (window-input-history win))
-           ;;       (window-input-string win))
-           (decf (window-input-history-position win))
-           (setf (window-input-string win)
-                 (nth (window-input-history-position win)
-                      (window-input-history win)))
-           (setf (window-input-cursor win) (length (window-input-string win)))
-           (render-input-string win)))
-        ((eql :down (key-vk k))
-         (when (< (window-input-history-position win)
+  (cond
+    ((window-input-active? win)
+     (when (key-pressed k)
+       (let ((pagelen (- (window-height win) 2))
+             (num-items (length (window-items win))))
+         (cond
+           ((graphic-char-p (key-c k))
+            (window-insert-character win (key-c k)))
+           ((eql :backspace (key-vk k))
+            (window-backspace-character win))
+           ((eql :delete (key-vk k))
+            (window-delete-character win))
+           ((eql :enter (key-vk k))
+            (send-string-to-terminal win)
+            (setf (window-input-cursor win) 0)
+            ;; (setf (nth (window-input-history-position win)
+            ;;            (window-input-history win))
+            ;;       (window-input-string win))
+            (setf (window-input-history win)
+                  (append
+                   (remove ""
+                           (append (window-input-history win)
+                                   (list (window-input-string win)))
+                           :test #'string=)
+                   (list "")))
+            (setf (window-input-history-position win)
                   (1- (length (window-input-history win))))
-           ;; (setf (nth (window-input-history-position win)
-           ;;            (window-input-history win))
-           ;;       (window-input-string win))
-           (incf (window-input-history-position win))
-           (setf (window-input-string win)
-                 (nth (window-input-history-position win)
-                      (window-input-history win)))
-           (setf (window-input-cursor win) (length (window-input-string win)))
-           (render-input-string win)))
-        (t
-         (return-from send-key-to-window (call-next-method))))
-      (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
-      (move-cursor-to win (window-offset win))
-      ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
-      ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
-      ;;            (window-offset win) (window-cursor win) num-items)
-      (prepare-window win)
-      (redraw-window-area win))
-    k))
+            (setf (window-input-string win) nil)
+            (if (eql :transient (window-input-active? win))
+                (setf (window-input-active? win) nil)))
+           ((eql :left (key-vk k))
+            (when (plusp (window-input-cursor win))
+              (decf (window-input-cursor win))
+              (render-input-string win)))
+           ((eql :right (key-vk k))
+            (when (< (window-input-cursor win)
+                     (length (window-input-string win)))
+              (incf (window-input-cursor win))
+              (render-input-string win)))
+           ((eql :home (key-vk k))
+            (setf (window-input-cursor win) 0)
+            (render-input-string win))
+           ((eql :end (key-vk k))
+            (setf (window-input-cursor win)
+                  (length (window-input-string win)))
+            (render-input-string win))
+           ((eql :up (key-vk k))
+            (when (plusp (window-input-history-position win))
+              ;; (setf (nth (window-input-history-position win)
+              ;;            (window-input-history win))
+              ;;       (window-input-string win))
+              (decf (window-input-history-position win))
+              (setf (window-input-string win)
+                    (nth (window-input-history-position win)
+                         (window-input-history win)))
+              (setf (window-input-cursor win)
+                    (length (window-input-string win)))
+              (render-input-string win)))
+           ((eql :down (key-vk k))
+            (when (< (window-input-history-position win)
+                     (1- (length (window-input-history win))))
+              ;; (setf (nth (window-input-history-position win)
+              ;;            (window-input-history win))
+              ;;       (window-input-string win))
+              (incf (window-input-history-position win))
+              (setf (window-input-string win)
+                    (nth (window-input-history-position win)
+                         (window-input-history win)))
+              (setf (window-input-cursor win)
+                    (length (window-input-string win)))
+              (render-input-string win)))
+           (t
+            (return-from send-key-to-window (call-next-method))))
+         (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
+         (move-cursor-to win (window-offset win))
+         ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
+         ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
+         ;;            (window-offset win) (window-cursor win) num-items)
+         (prepare-window win)
+         (redraw-window-area win))
+       k))
+    (t
+     (call-next-method))))
 
 
 (defmethod window-insert-character ((win <Terminal-Window>) (ch character))
@@ -3534,7 +3800,7 @@ the current 'input string' changes. Internal slot.")
 
 
 
-;;; <<Dialog-Window>> =========================================================
+;;; <<Dialog Window>> =========================================================
 
 
 (defvar *dialog->colour-table* nil
@@ -3640,9 +3906,8 @@ when clicked on."))
 
 
 
-;;;===========================================================================
-;;; (@> "Tooltip-Window")
-;;;===========================================================================
+;;; <<Tooltip Window>> ========================================================
+
 
 (defclass <Tooltip-Window> (<Dialog-Window>)
   ((window-framed? :initform t)
@@ -3653,6 +3918,7 @@ when clicked on."))
 certain window regions."))
 
 
+;;; <<Floating Window>>
 (defclass <Floating-Window> (<Log-Window> <Ghost-Window>)
   ((window-framed? :initform nil)
   (window-can-resize? :initform nil)
@@ -3667,6 +3933,7 @@ certain window regions."))
 
 (defmethod ok-to-show-tooltip? ((win <Tooltip-Window>))
   (or (not (typep win '<Window-With-Context-Menu>))
+      (null (context-menu win))
       (window-hidden? (context-menu win))))
 
 
