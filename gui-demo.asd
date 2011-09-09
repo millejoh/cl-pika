@@ -1,4 +1,4 @@
-;;;; -*- Mode: lisp; indent-tabs-mode: nil -*-
+;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp; coding: utf-8-unix -*- ;;;;;;;;80
 
 (defpackage #:gui-demo-system
 	(:use #:cl #:asdf))

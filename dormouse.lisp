@@ -1,4 +1,4 @@
-;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp; Base: 10 -*- ;;;;;;;;;;;;;;;;;80
+;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp; coding: utf-8-unix -*- ;;;;;;;;80
 ;;;;
 ;;;;    This file is part of DORMOUSE, by Paul Sexton
 ;;;;    Released under the Gnu Public License version 3
@@ -36,10 +36,10 @@
 ;;;; (@> "Utility functions")
 ;;;; (@> "Constants")
 ;;;; (@> "Global variables")
-;;;; (@> "Keys")
+;;;; [[Keys]]
 ;;;; (@> "Colourising strings")
 
-;;;; - [[Window]]
+;;;; - [[Window class]]
 ;;;;      - [[List Window]]
 ;;;;           - [[Filtered Window]]
 ;;;;           - [[Menu Window]]
@@ -58,7 +58,7 @@
 ;;;;      - (@> "Ghost-Window")
 ;;;;      - [[Window With Context Menu]]
 ;;;;      - (@> "Viewport")
-;;;;
+;;;; - [[Window Themes]]
 ;;;;
 ;;;; The documentation for this package is generated using the CLDOC library.
 ;;;;
@@ -78,7 +78,7 @@
 
 (in-package :cl-user)
 
-(declaim (optimize (speed 0) (safety 2) (debug 3)))
+(declaim (optimize (speed 0) (safety 3) (debug 3)))
 
 (defpackage :dormouse
   (:nicknames :dormouse :tcod-gui :tcod.gui)
@@ -86,7 +86,7 @@
         :iterate)
   (:documentation
 "DORMOUSE is a windowing `graphical' user interface library, built on top of
-the [[http://doryen.eptalys.net/libtcod/][Doryen Library] (libtcod).
+the [[http://doryen.eptalys.net/libtcod/][Doryen Library]] (libtcod).
 
 * What is the Doryen Library?
 
@@ -105,8 +105,8 @@ height maps, BSP, parsing of configuration files, and other features useful
 to game developers.
 
 Libtcod is written in C and C++. Bindings for libtcod are currently available
-in the python, C#, D, and
-[[http://bitbucket.org/eeeickythump/cl-tcod/][Common Lisp]].
+for the python, C#, D, and
+[[http://bitbucket.org/eeeickythump/cl-tcod/][Common Lisp]] languages.
 
 * What is DORMOUSE?
 
@@ -216,7 +216,11 @@ The latest version of DORMOUSE can be found at:
            #:redraw-all-windows
            #:prepare-windows-by-type
            #:do-for-windows-by-type
+           #:save-interface-state
+           #:restore-interface-state
+           #:destroy-interface-state
            #:hide-window
+           #:hide-all-windows
            #:raise-window
            #:move-window
            #:resize-window
@@ -224,10 +228,26 @@ The latest version of DORMOUSE can be found at:
            #:all-windows
            #:*mouse-x*
            #:*mouse-y*
+           ;; === events ===
            #:send-to-window
            #:send-key-to-window
+           #:<GUI-Event>
+           #:<Key-Event>
+           #:<Mouse-Event>
+           #:<Mouse-Hover-Event>
+           #:<GUI-Dialog-Event>
+           #:<GUI-Select-Event>
+           #:<GUI-Mouse-Drag-Event>
+           #:gui-event-winx
+           #:gui-event-winy
+           #:gui-event-keypress
+           #:gui-event-mouse-state
+           #:gui-event-focus
+           #:gui-event-string
            #:mouse-drag
            #:key->string
+           #:<Window-Theme>
+           #:*window-theme*
            #:<Window>
            #:<Modal-Window>
            #:<Ghost-Window>
@@ -255,6 +275,7 @@ The latest version of DORMOUSE can be found at:
            #:window-offset
            #:wrap-coloured-text
            #:coloured-string-length
+           #:window-draw-char-at
            #:draw-string-at
            #:add-item
            #:window-items
@@ -279,6 +300,8 @@ The latest version of DORMOUSE can be found at:
            #:bottom-message
            ;; Pager window
            #:<Pager-Window>
+           #:add-browser-line
+           #:clear-browser-lines
            ;; [[Hypertext window]] ============================================
            #:<Hypertext-Window>
            #:make-autolinks-in-hypertext-database
@@ -299,6 +322,7 @@ The latest version of DORMOUSE can be found at:
            #:map-ydim
            #:map-draw-char-at
            #:map-char-at
+           #:map-set-foreground-at
            #:map-set-background-at
            #:in-view?
            #:centre-viewport-on
@@ -328,6 +352,8 @@ The latest version of DORMOUSE can be found at:
            #:winy->mapy
            #:winx->rootx
            #:winy->rooty
+           #:rootx->winx
+           #:rooty->winy
            #:bar-chart
            ))
 
@@ -519,26 +545,21 @@ receive events. The window is not destroyed.
 * Examples:
 ;;; (hide-window mywin :redraw t)
 * See Also: "))
-(defgeneric send-to-window (win data parm winx winy)
-  (:documentation
-   "* Arguments:
-- WIN: an instance of {defclass dormouse:<Window>}
-- DATA: A value of type {deftype dormouse:=window-event-type=}, to be passed
-to WIN as an event.
-- PARM: Some additional value to passed to WIN to provide further information
-about the event. For key structs it is the value of the KEY-VK slot, or the
-KEY-C slot if KEY-VK is :CHAR.
-- WINX, WINY: the coordinates within the window where the event occurred,
-relative to the top left corner of WIN (not the screen).
-* Returns: None.
-* Description: Send an event to the window WIN. The event is described by
-DATA, with additional information in PARM when appropriate.
+(defgeneric send-to-window (win event)
+  (:documentation "* Arguments:
+- WIN: an instance of [[<Window>]]
+- EVENT :: an instance of [[<GUI-Event>]]
+* Returns: Non-nil if the event is handled, nil otherwise.
+* Description: Send an event to the window WIN. The event is described by EVENT.
 * Examples:
-;;; (send-to-window mywin :lmouse nil *mouse-x* *mouse-y*)
-* See Also: "))
-(defgeneric send-key-to-window (win key winx winy)
-  (:documentation "Return non-nil if they key is handled, nil if
-not handled."))
+;;; (send-to-window mywin (make-instance '<GUI-Mouse-Event>
+;;;                 :mouse-state (get-mouse-state))
+* See Also: ")
+  (:method ((win <Window>) event) (declare (ignore event)) nil)
+  (:method :around ((win <Window>) (event t))
+    (if (or (null (window-event-handler win))
+            (not (funcall (window-event-handler win) win event)))
+        (call-next-method))))
 (defgeneric on-border? (win x y)
   (:documentation
    "* Arguments:
@@ -552,7 +573,7 @@ not handled."))
   (:documentation "TODO document."))
 (defgeneric on-upper-window-border? (win x y)
   (:documentation "TODO document."))
-(defgeneric window-draw-char-at (win cg winx winy
+(defgeneric window-draw-char-at (win ch winx winy
                                 &key background-flag fg bg redraw
                                 &allow-other-keys)
   (:documentation "TODO document."))
@@ -683,11 +704,33 @@ number moves further down the list, a negative number moves up."))
 (defgeneric ok-to-show-tooltip? (win)
   (:documentation "TODO document.")
   (:method ((win t)) nil))
+(defgeneric window-page-length (win)
+  (:documentation "TODO document."))
+(defgeneric make-context-menu (win)
+  (:documentation "TODO document."))
+(defgeneric fill-to-end-of-window (win)
+  (:documentation "TODO document."))
+(defgeneric add-browser-line (win line)
+  (:documentation "TODO document."))
+(defgeneric clear-browser-lines (win)
+  (:documentation "TODO document."))
+(defgeneric hypertext-current-topic (win))
+(defgeneric open-hypertext-topic (win topic))
+(defgeneric render-input-string (win))
+(defgeneric send-string-to-terminal (win &optional str))
+(defgeneric window-insert-character (win ch))
+(defgeneric window-delete-character (win))
+(defgeneric window-backspace-character (win))
+(defgeneric map-set-background-at (win colour mapx mapy &key redraw))
+(defgeneric map-set-foreground-at (win colour mapx mapy &key redraw))
+(defgeneric window-prompt-foreground (win/theme))
+(defgeneric window-prompt-background (win/theme))
+(defgeneric window-input-foreground (win/theme))
+(defgeneric window-input-background (win/theme))
 
 
-;;;; ======================================================================
-;;;; (@> "User-defined types")
-;;;; ======================================================================
+;;;; <<User-defined types>> ===================================================
+
 
 (deftype =positive-integer= ()
   "Type consisting of all positive integers."
@@ -696,11 +739,11 @@ number moves further down the list, a negative number moves up."))
   "Type consisting of characters which are able to specify composition
 of accented characters within strings."
   `(member #\^ #\: #\` #\' #\0))
-(deftype =window-event-type= ()
-  "Type for the =DATA= argument to [[SEND-TO-WINDOW]]."
-  `(or (member :left :right :middle :wheel-up :wheel-down :select
-               :dialog)
-       tcod:key))
+;; (deftype =window-event-type= ()
+;;   "Type for the =DATA= argument to [[SEND-TO-WINDOW]]."
+;;   `(or (member :left :right :middle :wheel-up :wheel-down :select
+;;                :dialog)
+;;        tcod:key))
 
 
 ;;;; <<Constants>> ============================================================
@@ -1029,6 +1072,51 @@ be ignored (treated as zero)."
     (collect key)))
 
 
+
+;;; <<Events>> ================================================================
+
+
+(defclass <GUI-Event> ()
+  ((gui-event-type :accessor gui-event-type :initform nil :initarg :event-type)
+   (gui-event-window :accessor gui-event-window :initform nil :initarg :window)
+   (gui-event-winx :accessor gui-event-winx :initform nil :initarg :winx)
+   (gui-event-winy :accessor gui-event-winy :initform nil :initarg :winy)))
+
+
+(defclass <Key-Event> (<GUI-Event>)
+  ((gui-event-type :initform :keypress)
+   (gui-event-keypress :accessor gui-event-keypress
+                       :type (or null tcod:key) :initform nil
+                       :initarg :keypress)))
+
+
+(defclass <Mouse-Event> (<GUI-Event>)
+  ((gui-event-type :initform :mouse)
+   (gui-event-mouse-state :accessor gui-event-mouse-state
+                          :initform nil :initarg :mouse-state)))
+
+
+(defclass <GUI-Mouse-Drag-Event> (<Mouse-Event>)
+  ((gui-event-type :initform :mouse-drag)))
+
+
+(defclass <Mouse-Hover-Event> (<Mouse-Event>)
+  ((gui-event-type :initform :mouse-hover)
+   (gui-event-focus :initform nil :accessor gui-event-focus :initarg :focus
+                    :documentation "If the mouse is hovering over some particular
+item or value, it can be stored here.")))
+
+
+(defclass <GUI-Dialog-Event> (<GUI-Event>)
+  ((gui-event-type :initform :dialog)
+   (gui-event-string :initform nil :accessor gui-event-string :initarg :string)))
+
+
+(defclass <GUI-Select-Event> (<GUI-Event>)
+  ((gui-event-type :initform :select)
+   (gui-event-focus :initform nil :accessor gui-event-focus :initarg :focus)))
+
+
 ;;; <<Keys>> ==================================================================
 
 
@@ -1120,6 +1208,18 @@ key structure, K, in human-readable form."
                   (format nil "~C" (key-c k)))
                  (otherwise
                   (format nil "~A" (key-vk k))))))
+
+
+(let ((key-event nil))
+  (defun send-key-to-window (win key winx winy)
+    "Return non-nil if the key is handled, nil if not handled."
+    (unless key-event
+      (setf key-event (make-instance '<Key-Event>)))
+    (setf (gui-event-keypress key-event) key
+          (gui-event-winx key-event) winx
+          (gui-event-winy key-event) winy
+          (gui-event-window key-event) win)
+    (send-to-window win key-event)))
 
 
 ;;; <<Colourising strings>> ===================================================
@@ -1586,13 +1686,16 @@ relative to the bottom right corner of the screen.")
    (window-console :accessor window-console :initform nil :initarg :console
                    :documentation "Contains the external C console pointer for
                    the window.")
-   (window-foreground :accessor window-foreground :initform :white :type keyword
+   (window-foreground :writer (setf window-foreground)
+                      :type keyword
                       :initarg :foreground
-                      :documentation "Default foreground colour for the window.")
-   (window-background :accessor window-background
-                      :initform :dark-grey :type keyword
+                      :documentation
+                      "Default foreground colour for the window.")
+   (window-background :writer (setf window-background)
+                      :type keyword
                       :initarg :background
-                      :documentation "Default background colour for the window.")
+                      :documentation
+                      "Default background colour for the window.")
    (window-children :accessor window-children :initform nil
                     :type list :initarg :children
                     :documentation "List of windows which are
@@ -1603,10 +1706,11 @@ below.")
     :accessor window-raise-children-with-parent? :initform t
     :type boolean :documentation  "Are child windows to be raised and
 hidden when the same is done to the parent?")
-   (window-auto-redraw? :accessor window-auto-redraw? :initform nil :type boolean
+   (window-auto-redraw? :accessor window-auto-redraw? :initform nil
+                        :type boolean
                         :documentation "Should this window automatically redraw
 itself if it finds WINDOW-CHANGED? is non-nil?")
-   (window-framed? :accessor window-framed? :initform t
+   (window-framed? :writer (setf window-framed?)
                    :type boolean :initarg :framed?
                    :documentation "Should a frame be drawn in the edges of the
                    window?")
@@ -1627,18 +1731,29 @@ an 'X' in its top right corner?")
 upon being hidden.")
    (window-draw-function :accessor window-draw-function :initform nil
                          :type (or null function) :initarg :draw
-                         :documentation "Function that is called to
-'fill in' the interior of the window when it is drawn or redrawn.")
+                         :documentation "Function taking one argument -- the
+window -- that is called to 'fill in' the interior of the window when it is
+drawn or redrawn.")
+   (window-event-handler :accessor window-event-handler
+                         :initform nil
+                         :initarg :event-handler
+                         :documentation "Must be either nil or a Function
+accepting two arguments:
+WIN and EVENT. Called when an input event is to be sent to the
+window. WIN is the window in question, EVENT is an instance of GUI-EVENT.
+The function must return non-nil if the event was 'handled', nil if it was
+not handled and should be passed on to other possible handlers.")
    (window-title :accessor window-title :initform nil
                  :type (or null string) :initarg :title
                  :documentation "Title of the window.")
-   (window-transparency :accessor window-transparency :initform 25
+   (window-transparency :writer (setf window-transparency)
+                        :type (integer 0 100)
                         :initarg :transparency
                         :documentation "Amount of transparency of the window,
 from 0-100, where 100 = invisible.")
    (window-transparency-unfocussed
-    :accessor window-transparency-unfocussed :initform +DIMMED+
-    :type t :initarg :transparency-unfocussed
+    :writer (setf window-transparency-unfocussed)
+    :type (or null (integer 0 100)) :initarg :transparency-unfocussed
     :documentation "When this window does not have the focus, what does its
 transparency become? (NIL = no change in transparency)")
    ;; Internal bookkeeping slots, usually not accessed by the user.
@@ -1656,6 +1771,112 @@ the screen.
 * Examples: TODO
 * See Also: "))
 
+
+;;; <<Window Themes>> =========================================================
+
+
+(defclass <Window-Theme> ()
+  (;; Colours =================================================================
+   (window-foreground :accessor window-foreground :initform :white
+                      ;;:type keyword
+                      :initarg :foreground
+                      :documentation
+                      "Default foreground colour for window contents.")
+   (window-background :accessor window-background
+                      :initform :dark-slate-gray :type keyword
+                      :initarg :background
+                      :documentation
+                      "Default background colour for window contents.")
+   (hyperlink-foreground-colour
+    :initform :light-blue :type keyword :initarg :hyperlink-fg
+    :accessor hyperlink-foreground-colour)
+   (window-prompt-foreground :initarg :prompt-fg
+                             :writer (setf window-prompt-foreground)
+                             :documentation "Foreground colour for prompts in
+Terminal Windows. Defaults to WINDOW-FOREGROUND.")
+   (window-prompt-background :initarg :prompt-bg
+                             :writer (setf window-prompt-background))
+   (window-input-foreground :initarg :input-fg
+                            :writer (setf window-input-foreground)
+                            :documentation "Foreground colour for input typed
+by the user in Terminal Windows. Defaults to WINDOW-FOREGROUND.")
+   (window-input-background :initarg :input-bg
+                            :writer (setf window-input-background))
+   ;; Other settings ==========================================================
+   (window-framed? :accessor window-framed? :initform t
+                   :type boolean :initarg :framed?
+                   :documentation "Should a frame be drawn around the edges of
+                   windows?")
+   (window-transparency :accessor window-transparency :initform 25
+                        :type (integer 0 100)
+                        :initarg :transparency
+                        :documentation "Amount of window transparency,
+from 0-100, where 100 = invisible.")
+   (window-transparency-unfocussed
+    :accessor window-transparency-unfocussed :initform +DIMMED+
+    :type (or null (integer 0 100))
+    :initarg :transparency-unfocussed
+    :documentation "When windows do not have the focus, what does their
+transparency become? (NIL = no change in transparency)"))
+  (:documentation
+   "Object containing global appearance information, which all windows
+will use unless overridden."))
+
+
+(defvar *default-window-theme* (make-instance '<Window-Theme>))
+(defvar *window-theme* *default-window-theme*)
+
+
+;; Readers for Window slots that override Theme defaults.
+
+
+(defmethod window-foreground ((win <Window>))
+  (if (slot-boundp win 'window-foreground)
+      (slot-value win 'window-foreground)
+      (window-foreground *window-theme*)))
+
+(defmethod window-background ((win <Window>))
+  (if (slot-boundp win 'window-background)
+      (slot-value win 'window-background)
+      (window-background *window-theme*)))
+
+(defmethod window-framed? ((win <Window>))
+  (if (slot-boundp win 'window-framed?)
+      (slot-value win 'window-framed?)
+      (window-framed? *window-theme*)))
+
+(defmethod window-transparency ((win <Window>))
+  (if (slot-boundp win 'window-transparency)
+      (slot-value win 'window-transparency)
+      (window-transparency *window-theme*)))
+
+(defmethod window-transparency-unfocussed ((win <Window>))
+  (if (slot-boundp win 'window-transparency-unfocussed)
+      (slot-value win 'window-transparency-unfocussed)
+      (window-transparency-unfocussed *window-theme*)))
+
+;;; Readers for window theme slots, allowing these slots to
+;;; default to FG/BG values.
+
+(defmethod window-prompt-foreground ((theme <Window-Theme>))
+  (if (slot-boundp theme 'window-prompt-foreground)
+      (slot-value theme 'window-prompt-foreground)
+      (window-foreground theme)))
+
+(defmethod window-prompt-background ((theme <Window-Theme>))
+  (if (slot-boundp theme 'window-prompt-background)
+      (slot-value theme 'window-prompt-background)
+      (window-background theme)))
+
+(defmethod window-input-foreground ((theme <Window-Theme>))
+  (if (slot-boundp theme 'window-input-foreground)
+      (slot-value theme 'window-input-foreground)
+      (window-foreground theme)))
+
+(defmethod window-input-background ((theme <Window-Theme>))
+  (if (slot-boundp theme 'window-input-background)
+      (slot-value theme 'window-input-background)
+      (window-background theme)))
 
 
 (defun screen-width ()
@@ -1749,6 +1970,47 @@ the screen.
     (while (setf wins (all-windows)))
     (destroy-window (car wins))))
 
+
+(defstruct window-configuration
+  (visible-windows nil)
+  (hidden-windows nil))
+
+
+(defun save-interface-state ()
+  "* Returns:
+A WINDOWS-CONFIGURATION struct, which contains information sufficient to
+restore the interface to its current state in future via a call to
+`restore-interface-state'.
+
+ Intended to be called if we want to make substantial changes to the interface
+setup, but might later want to restore the current window setup."
+  (make-window-configuration :visible-windows (copy-list *window-stack*)
+                             :hidden-windows (copy-list *hidden-windows*)))
+
+
+(defun restore-interface-state (state)
+  "* Arguments:
+- STATE :: A WINDOWS-CONFIGURATION struct, usually one created previously
+by a call to `save-interface-state'.
+* Returns:
+A new WINDOWS-CONFIGURATION struct, containing information about the overwritten
+interfact state."
+  (let ((cfg (save-interface-state)))
+    (setf *window-stack* (copy-list (window-configuration-visible-windows state)))
+    (setf *hidden-windows* (copy-list (window-configuration-hidden-windows state)))
+    (dolist (win (all-windows))
+      (dirty-window win))
+    cfg))
+
+
+(defun destroy-interface-state (state)
+  (dolist (win (window-configuration-visible-windows state))
+    (destroy-window win))
+  (dolist (win (window-configuration-hidden-windows state))
+    (destroy-window win))
+  (setf (window-configuration-visible-windows state) nil
+        (window-configuration-hidden-windows state) nil)
+  state)
 
 
 (defmethod touch-windows ((win <Window>))
@@ -2152,20 +2414,23 @@ Return the Y-coordinate of the bottom right corner of the window.
      (pushnew win *hidden-windows* :test #'equal))))
 
 
+(defun hide-all-windows ()
+  (dolist (win (copy-list *window-stack*))
+    (hide-window win)))
 
-(defmethod send-key-to-window :before ((win <Window>) (k key) winx winy)
+
+(defmethod send-to-window :before ((win <Window>) (event <Key-Event>))
   ;; Ctrl-Esc and Ctrl-F1 are defined here as universal "shut down the
   ;; gui loop" keys.
-  (declare (ignore winx winy))
-  (when (key-pressed k)
-    (when (and (member (key-vk k) (list :escape :f1))
-               (or (key-lctrl k)
-                   (key-rctrl k))
-               (not (key-shift k))
-               (not (key-lalt k))
-               (not (key-ralt k)))
-      (setf *exit-gui?* t)
-      k)))
+  (let ((k (gui-event-keypress event)))
+    (when (key-pressed k)
+      (when (and (member (key-vk k) (list :escape :f1))
+                 (or (key-lctrl k)
+                     (key-rctrl k))
+                 (not (key-shift k))
+                 (not (key-lalt k))
+                 (not (key-ralt k)))
+        (setf *exit-gui?* t)))))
 
 
 
@@ -2424,16 +2689,9 @@ to be redrawn."
     (window-redraw-at w rootx rooty)))
 
 
-
-(defmethod send-to-window ((win <Window>) data parm winx winy)
-  (declare (ignore data parm winx winy))
-  nil)
-
-
-
-(defmethod send-to-window ((win <Window>) (data (eql :left-drag))
-                           rodent winx winy)
-  (let ((topwin nil))
+(defmethod send-to-window ((win <Window>) (event <GUI-Mouse-Drag-Event>))
+  (let ((topwin nil)
+        (rodent nil))
     ;; draw everything but the window
     (raise-window win)
     (iterate
@@ -2445,15 +2703,10 @@ to be redrawn."
     ;; Stopped dragging.
     (when topwin
       (mouse-drag win topwin
-                  winx winy
+                  (gui-event-winx event)
+                  (gui-event-winy event)
                   (rootx->winx topwin (mouse-cx rodent))
                   (rooty->winy topwin (mouse-cy rodent))))))
-
-
-
-(defmethod send-key-to-window ((win <Window>) k winx winy)
-  (declare (ignore winx winy k))
-  nil)
 
 
 
@@ -2476,15 +2729,15 @@ can be sent to any other windows."
     (typep win '<Modal-Window>))
 
 
-(defmethod send-key-to-window :around ((win <Modal-Window>) (k key) winx winy)
-  (declare (ignore winx winy))
-  (when (key-pressed k)
+(defmethod send-to-window :around ((win <Modal-Window>) (event <Key-Event>))
+  (let ((k (gui-event-keypress event)))
+    (when (key-pressed k)
       (case (key-vk k)
         (:escape
          (hide-window win)
          k)
         (otherwise
-         (call-next-method)))))
+         (call-next-method))))))
 
 
 
@@ -2532,40 +2785,40 @@ on (yes) or (no) or to press Y or N."))
                1 2))
 
 
-(defmethod send-to-window :around ((win <Yes/No-Window>) (data (eql :dialog))
-                                   str winx winy)
-  (declare (ignore winx winy))
-  (cond
-    ((and (string= str "yes")
-          (window-choice-function win))
-     (hide-window win)
-     (funcall (window-choice-function win) t))
-    ((and (string= str "no")
-          (window-choice-function win))
-     (hide-window win)
-     (funcall (window-choice-function win) nil))
-    (t
-     (call-next-method))))
-
-
-(defmethod send-key-to-window :around ((win <Yes/No-Window>) (k key) winx winy)
-  (declare (ignore winx winy))
-  (when (key-pressed k)
+(defmethod send-to-window :around ((win <Yes/No-Window>)
+                                   (event <GUI-Dialog-Event>))
+  (let ((str (gui-event-string event)))
     (cond
-      ((and (eql :char (key-vk k))
-            (member (key-c k) '(#\Y #\y))
+      ((and (string= str "yes")
             (window-choice-function win))
        (hide-window win)
-       (funcall (window-choice-function win) t)
-       k)
-      ((and (eql :char (key-vk k))
-            (member (key-c k) '(#\N #\n))
+       (funcall (window-choice-function win) t))
+      ((and (string= str "no")
             (window-choice-function win))
        (hide-window win)
-       (funcall (window-choice-function win) nil)
-       k)
+       (funcall (window-choice-function win) nil))
       (t
        (call-next-method)))))
+
+
+(defmethod send-to-window :around ((win <Yes/No-Window>) (event <Key-Event>))
+  (let ((k (gui-event-keypress event)))
+    (when (key-pressed k)
+      (cond
+        ((and (eql :char (key-vk k))
+              (member (key-c k) '(#\Y #\y))
+              (window-choice-function win))
+         (hide-window win)
+         (funcall (window-choice-function win) t)
+         k)
+        ((and (eql :char (key-vk k))
+              (member (key-c k) '(#\N #\n))
+              (window-choice-function win))
+         (hide-window win)
+         (funcall (window-choice-function win) nil)
+         k)
+        (t
+         (call-next-method))))))
 
 
 ;;;===========================================================================
@@ -2728,38 +2981,37 @@ The enter key selects the item under the cursor."))
 
 
 
-(defmethod send-to-window ((win <List-Window>) data parm winx winy)
-  (declare (ignore parm))
-  (cond
-    ((and (on-lower-window-border? win winx winy)
-          (member data (list :left :right)))
-     (send-key-to-window win (make-key :vk
-                                       (case data
-                                         (:left :pagedown)
-                                         (:right :pageup)))
-                         winx winy))
-    ((and (not (on-border? win winx winy))
-          (eql data :wheel-up))
-     (send-key-to-window win (make-key :vk :up) winx winy))
-    ((and (not (on-border? win winx winy))
-          (eql data :wheel-down))
-     (send-key-to-window win (make-key :vk :down) winx winy))
-    ((and (eql data :left)
-          (not (on-border? win winx winy)))
-     (let ((newc (- (1- winy) (window-offset win))))
-       (if (<= newc (window-items-lines win))
-           (move-cursor-to win newc)))
-     (prepare-window win)
-     (redraw-window-area win))
-    (t
-     (call-next-method))))
+(defmethod send-to-window ((win <List-Window>) (event <Mouse-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (mouse gui-event-mouse-state)) event
+    (let ((left (mouse-lbutton-pressed mouse))
+          (right (mouse-rbutton-pressed mouse))
+          (wheel-up (mouse-wheel-up mouse))
+          (wheel-down (mouse-wheel-down mouse)))
+      (cond
+        ((and (on-lower-window-border? win winx winy)
+              (or left right))
+         (send-key-to-window win (make-key :vk
+                                           (cond
+                                             (left :pagedown)
+                                             (right :pageup)))
+                             winx winy))
+        ((and (not (on-border? win winx winy))
+              wheel-up)
+         (send-key-to-window win (make-key :vk :up) winx winy))
+        ((and (not (on-border? win winx winy))
+              wheel-down)
+         (send-key-to-window win (make-key :vk :down) winx winy))
+        ((and left
+              (not (on-border? win winx winy)))
+         (let ((newc (- (1- winy) (window-offset win))))
+           (if (<= newc (window-items-lines win))
+               (move-cursor-to win newc)))
+         (prepare-window win)
+         (redraw-window-area win))
+        (t
+         (call-next-method))))))
 
-
-(defmethod send-to-window ((win <List-Window>) (data (eql :hover))
-                           (parm (eql :unspecified)) winx winy)
-  (send-to-window win :hover (window-item-at win winx winy)
-                  ;;(window-item-at-cursor win)
-                  winx winy))
 
 
 
@@ -2782,55 +3034,64 @@ The enter key selects the item under the cursor."))
 
 
 
+(defmethod send-to-window ((win <List-Window>) (event <Mouse-Hover-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)) event
+  (cond
+    ((null (gui-event-focus event))
+     (setf (gui-event-focus event) (window-item-at win winx winy))))))
 
 
-(defmethod send-key-to-window :around ((win <List-Window>) (k key) winx winy)
-  (when (key-pressed k)
-    (let ((pagelen (- (window-height win) 2))
-          (num-items (length (window-items win))))
-      (case (key-vk k)
-        (:up
-         (move-cursor-by win -1)  ;;(decf (window-cursor win))
-         (if (< (window-cursor win) (window-offset win))
-             (decf (window-offset win))))
-        (:down
-         (move-cursor-by win 1)  ;;(incf (window-cursor win))
-         (if (>= (window-cursor win) (+ (window-offset win) pagelen))
-             (incf (window-offset win))))
-        (:pageup
-         (decf (window-offset win) pagelen)
-         (move-cursor-by win (- pagelen)))  ;;(decf (window-cursor win) pagelen))
-        (:pagedown
-         (incf (window-offset win) pagelen)
-         (move-cursor-by win pagelen))  ;;(incf (window-cursor win) pagelen))
-        (:home
-         (setf (window-offset win) 0)
-         (move-cursor-to win 0))  ;;(setf (window-cursor win) 0))
-        (:end
-         (setf (window-offset win) (- num-items pagelen))
-         (move-cursor-to-end win)) ;; (setf (window-cursor win) (1- num-items)))
-        (:enter
-         (send-to-window win :select
-                         (list-item-item (window-item-at-cursor win))
-                         winx winy))
-        (otherwise
-         (let ((matching (find-if #'(lambda (item)
-                                      (and (key-p (list-item-hotkey item))
-                                           (same-keys? (list-item-hotkey item) k)))
-                                  (window-items win))))
-           (cond
-             (matching
-              (move-cursor-to win (position matching (window-items win))))
-             (t
-              (return-from send-key-to-window (call-next-method)))))))
-      ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
-      (constrain! (window-offset win)
-                  (1+ (- (window-cursor win) pagelen))
-                  (window-cursor win))
-      (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
-      (prepare-window win)
-      (redraw-window-area win)
-      k)))
+
+(defmethod send-to-window :around ((win <List-Window>) (event <Key-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (k gui-event-keypress)) event
+    (when (key-pressed k)
+      (let ((pagelen (- (window-height win) 2))
+            (num-items (length (window-items win))))
+        (case (key-vk k)
+          (:up
+           (move-cursor-by win -1) ;;(decf (window-cursor win))
+           (if (< (window-cursor win) (window-offset win))
+               (decf (window-offset win))))
+          (:down
+           (move-cursor-by win 1) ;;(incf (window-cursor win))
+           (if (>= (window-cursor win) (+ (window-offset win) pagelen))
+               (incf (window-offset win))))
+          (:pageup
+           (decf (window-offset win) pagelen)
+           (move-cursor-by win (- pagelen))) ;;(decf (window-cursor win) pagelen))
+          (:pagedown
+           (incf (window-offset win) pagelen)
+           (move-cursor-by win pagelen)) ;;(incf (window-cursor win) pagelen))
+          (:home
+           (setf (window-offset win) 0)
+           (move-cursor-to win 0)) ;;(setf (window-cursor win) 0))
+          (:end
+           (setf (window-offset win) (- num-items pagelen))
+           (move-cursor-to-end win)) ;; (setf (window-cursor win) (1- num-items)))
+          (:enter
+           (send-to-window win (make-instance
+                                '<GUI-Select-Event>
+                                :focus (list-item-item (window-item-at-cursor win))
+                                :winx winx :winy winy)))
+          (otherwise
+           (let ((matching (find-if #'(lambda (item)
+                                        (and (key-p (list-item-hotkey item))
+                                             (same-keys? (list-item-hotkey item) k)))
+                            (window-items win))))
+             (cond
+               (matching
+                   (move-cursor-to win (position matching (window-items win))))
+               (t
+                (return-from send-to-window (call-next-method)))))))
+        ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
+        (constrain! (window-offset win)
+                    (1+ (- (window-cursor win) pagelen))
+                    (window-cursor win))
+        (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
+        (prepare-window win)
+        (redraw-window-area win)
+        k))))
 
 
 (defmethod move-cursor-to-end ((win <List-Window>))
@@ -2906,49 +3167,49 @@ Pressing DELETE will erase all characters in FILTER-STRING."))
 
 
 
-(defmethod send-key-to-window :after ((win <Filtered-Window>) (k key)
-                                      winx winy)
-  (declare (ignore winy winx))
-  (let ((added? nil))
-    (when (key-pressed k)
-      (cond
-        ((and (eql (key-vk k) :char)
-              (graphic-char-p (key-c k)))
-         ;; add char to filter-string
-         (setf (filter-string win)
-               (concatenate 'string (filter-string win) (list (key-c k))))
-         (setf added? t))
-        ((eql (key-vk k) :backspace)
-         ;; remove one char from end of filter-string
-         (if (> (length (filter-string win)) 0)
-             (setf (filter-string win)
-                   ;;; STRLEFT
-                   (subseq (filter-string win) 0
-                           (min (length (filter-string win))
-                                (1- (length (filter-string win))))))))
-        ((eql (key-vk k) :delete)
-         ;; clear filter-string
-         (setf (filter-string win) nil))
-        (t
-         (return-from send-key-to-window nil)))
-      ;; Still here means we changed filter-string.
-      ;; Therefore need to recalculate lines.
-      (cond
-        ((and (filter-string win)
-              (string> (filter-string win) ""))
-         (setf (window-items win)
-               (iterate
-                 (for item in (if added?
-                                  (window-items win)
-                                  (window-all-items win)))
-                 (if (item-matches-filter-string? win item)
-                     (collect item)
-                     ;; else
-                     nil))))
-        (t
-         (setf (window-items win) (copy-list (window-all-items win)))))
-      (move-cursor-to win 0)
-      (setf (window-changed? win) t))))
+(defmethod send-to-window :after ((win <Filtered-Window>) (event <Key-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (k gui-event-keypress)) event
+    (let ((added? nil))
+      (when (key-pressed k)
+        (cond
+          ((and (eql (key-vk k) :char)
+                (graphic-char-p (key-c k)))
+           ;; add char to filter-string
+           (setf (filter-string win)
+                 (concatenate 'string (filter-string win) (list (key-c k))))
+           (setf added? t))
+          ((eql (key-vk k) :backspace)
+           ;; remove one char from end of filter-string
+           (if (> (length (filter-string win)) 0)
+               (setf (filter-string win)
+;;; STRLEFT
+                     (subseq (filter-string win) 0
+                             (min (length (filter-string win))
+                                  (1- (length (filter-string win))))))))
+          ((eql (key-vk k) :delete)
+           ;; clear filter-string
+           (setf (filter-string win) nil))
+          (t
+           (return-from send-to-window nil)))
+        ;; Still here means we changed filter-string.
+        ;; Therefore need to recalculate lines.
+        (cond
+          ((and (filter-string win)
+                (string> (filter-string win) ""))
+           (setf (window-items win)
+                 (iterate
+                   (for item in (if added?
+                                    (window-items win)
+                                    (window-all-items win)))
+                   (if (item-matches-filter-string? win item)
+                       (collect item)
+                       ;; else
+                       nil))))
+          (t
+           (setf (window-items win) (copy-list (window-all-items win)))))
+        (move-cursor-to win 0)
+        (setf (window-changed? win) t)))))
 
 
 
@@ -2967,53 +3228,46 @@ closes the menu window and returns the item. Hovering the mouse over an item
 moves the cursor to that item."))
 
 
-(defmethod send-to-window ((win <Menu-Window>) data parm winx winy)
-  (declare (ignore winx winy parm data))
-  (when (next-method-p) (call-next-method)))
+(defmethod send-to-window :before ((win <Menu-Window>) (event <Mouse-Hover-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)) event
+    (unless (on-border? win winx winy)
+      (move-cursor-to win (+ (window-offset win) (1- winy)))
+      (prepare-window win)
+      (redraw-window-area win))))
 
 
+(defmethod send-to-window ((win <Menu-Window>) (event <Mouse-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (mouse gui-event-mouse-state)) event
+    (cond
+      ((mouse-rbutton-pressed mouse)
+       (hide-window win))
+      ((and (mouse-lbutton-pressed mouse)
+            (not (on-border? win winx winy)))
+       (move-cursor-to win (+ (window-offset win) (1- winy)))
+       (when (list-item-p (window-item-at-cursor win))
+         ;; (warn "Menu - selected item ~S"
+         ;;            (list-item-item
+         ;;             (window-item-at-cursor win)))
+         (hide-window win)
+         (send-to-window win (make-instance
+                              '<GUI-Select-Event>
+                              :focus (list-item-item (window-item-at-cursor win))
+                              :winx winx :winy winy)))))))
 
-(defmethod send-to-window :before ((win <Menu-Window>) (data (eql :hover))
-                                   parm winx winy)
-  (declare (ignore parm))
-  (unless (on-border? win winx winy)
-    (move-cursor-to win (+ (window-offset win) (1- winy)))
-    (prepare-window win)
-    (redraw-window-area win)))
 
-
-(defmethod send-to-window ((win <Menu-Window>) (data (eql :left))
-                           parm winx winy)
-  (declare (ignore parm))
-  (unless (on-border? win winx winy)
-    (move-cursor-to win (+ (window-offset win) (1- winy)))
-    (when (list-item-p (window-item-at-cursor win))
-      ;; (warn "Menu - selected item ~S"
-      ;;            (list-item-item
-      ;;             (window-item-at-cursor win)))
+(defmethod send-to-window :after ((win <Menu-Window>) (event <Key-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (k gui-event-keypress)) event
+    (when (and (key-pressed k)
+               (window-item-at-cursor win)
+               (list-item-hotkey (window-item-at-cursor win))
+               (same-keys? k (list-item-hotkey (window-item-at-cursor win))))
       (hide-window win)
-      (send-to-window win :select (list-item-item
-                                   (window-item-at-cursor win))
-                      winx winy))))
-
-
-(defmethod send-key-to-window :after ((win <Menu-Window>) (k key) winx winy)
-  (when (and (key-pressed k)
-             (window-item-at-cursor win)
-             (list-item-hotkey (window-item-at-cursor win))
-             (same-keys? k (list-item-hotkey (window-item-at-cursor win))))
-    (hide-window win)
-    (send-to-window win :select
-                    (list-item-item (window-item-at-cursor win))
-                    winx winy)))
-
-
-
-
-(defmethod send-to-window ((win <Menu-Window>) (data (eql :right))
-                           parm winx winy)
-  (declare (ignore winx winy data parm))
-  (hide-window win))
+      (send-to-window win (make-instance
+                           '<GUI-Select-Event>
+                           :focus (list-item-item (window-item-at-cursor win))
+                           :winx winx :winy winy)))))
 
 
 
@@ -3041,7 +3295,7 @@ can choose to apply to the item that was clicked on."))
 
 
 (defclass <Context-Menu> (<Menu-Window>)
-  ((window-transparency :initform +OPAQUE+)
+  (;;(window-transparency :initform +OPAQUE+)
    (window-width :initform 15)
    (window-height :initform 8)
    (context-item :accessor context-item :initform nil
@@ -3090,25 +3344,26 @@ current window activation.")))
 
 
 (defmethod send-to-window :before ((win <Window-With-Context-Menu>)
-                                   (data (eql :right))
-                                   parm winx winy)
-  (declare (ignore parm))
-  (setf (context-item (context-menu win))
-        (get-context-at win winx winy)))
+                                   (event <Mouse-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (mouse gui-event-mouse-state)) event
+    (when (mouse-rbutton-pressed mouse)
+    (setf (context-item (context-menu win))
+          (get-context-at win winx winy)))))
 
 
 
 (defmethod send-to-window :after ((win <Window-With-Context-Menu>)
-                                  (data (eql :right))
-                                   parm winx winy)
-  (declare (ignore winx winy parm))
-  (cond
-    ((window-hidden? (context-menu win))
-     (move-window-beside-mouse (context-menu win))
-     (prepare-window (context-menu win))
-     (raise-window (context-menu win) :redraw t))
-    (t
-     (hide-window (context-menu win) :redraw t))))
+                                  (event <Mouse-Event>))
+  (with-slots ((mouse gui-event-mouse-state)) event
+    (when (mouse-rbutton-pressed mouse)
+      (cond
+        ((window-hidden? (context-menu win))
+         (move-window-beside-mouse (context-menu win))
+         (prepare-window (context-menu win))
+         (raise-window (context-menu win) :redraw t))
+        (t
+         (hide-window (context-menu win) :redraw t))))))
 
 
 
@@ -3149,11 +3404,9 @@ current window activation.")))
 
 
 
-(defmethod send-to-window :after ((win <Context-Menu>)
-                                  (data (eql :select))
-                                  parm winx winy)
-  (declare (ignore winx winy))
-  (command-from-context-menu (window-parent win) parm (context-item win)))
+(defmethod send-to-window :after ((win <Context-Menu>) (event <GUI-Select-Event>))
+  (command-from-context-menu (window-parent win) (gui-event-focus event)
+                             (context-item win)))
 
 
 (defmethod get-menu-items-for-context ((win <Window-With-Context-Menu>)
@@ -3171,8 +3424,7 @@ current window activation.")))
 
 
 (defclass <Log-Window> (<List-Window>)
-  ((window-framed? :initform t)
-   (window-can-resize? :initform t)
+  ((window-can-resize? :initform t)
    (window-can-drag? :initform t)
    (window-show-tail-by-default? :accessor window-show-tail-by-default?
                                  :initform nil
@@ -3217,28 +3469,29 @@ refreshed.")
 
 
 
-(defmethod send-key-to-window :around ((win <Log-Window>) (k key) winx winy)
-  (declare (ignore winx winy))
-  (when (key-pressed k)
-    (let ((pagelen (- (window-height win) 2))
-          (num-items (length (window-items win))))
-      (case (key-vk k)
-        (:up
-         (decf (window-offset win)))
-        (:down
-         (incf (window-offset win)))
-        (otherwise
-         (return-from send-key-to-window (call-next-method))))
-      ;; (warn "offset = ~D, cursor = ~D, num-items = ~D"
-      ;;            (window-offset win) (window-cursor win) num-items)
-      (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
-      (move-cursor-to win (window-offset win))
-      ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
-      ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
-      ;;            (window-offset win) (window-cursor win) num-items)
-      (prepare-window win)
-      (redraw-window-area win))
-    k))
+(defmethod send-to-window :around ((win <Log-Window>) (event <Key-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (k gui-event-keypress)) event
+    (when (key-pressed k)
+      (let ((pagelen (- (window-height win) 2))
+            (num-items (length (window-items win))))
+        (case (key-vk k)
+          (:up
+           (decf (window-offset win)))
+          (:down
+           (incf (window-offset win)))
+          (otherwise
+           (return-from send-to-window (call-next-method))))
+        ;; (warn "offset = ~D, cursor = ~D, num-items = ~D"
+        ;;            (window-offset win) (window-cursor win) num-items)
+        (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
+        (move-cursor-to win (window-offset win))
+        ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
+        ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
+        ;;            (window-offset win) (window-cursor win) num-items)
+        (prepare-window win)
+        (redraw-window-area win))
+      k)))
 
 
 
@@ -3332,17 +3585,16 @@ onto the bottom line of the root console.
     (clear-messages win))
 
 
-(defmethod send-key-to-window :around ((win <Pager-Window>)
-				       (k key) winx winy)
-  (declare (ignore winx winy))
-  (when (key-pressed k)
-    (case (key-vk k)
-      ((:enter :kpenter)
-       nil)
-      (:escape
-       (hide-window win))
-      (otherwise
-       (call-next-method)))))
+(defmethod send-to-window :around ((win <Pager-Window>) (event <Key-Event>))
+  (with-slots ((k gui-event-keypress)) event
+    (when (key-pressed k)
+      (case (key-vk k)
+        ((:enter :kpenter)
+         nil)
+        (:escape
+         (hide-window win))
+        (otherwise
+         (call-next-method))))))
 
 
 ;;; <<Hypertext window>> ======================================================
@@ -3357,14 +3609,20 @@ onto the bottom line of the root console.
 Returns the text of the hypertext database entry whose title is the same
 as the string. Returns nil if the topic does not exist.")
    (hyperlink-foreground-colour
-    :initform :blue :initarg :hyperlink-fg
-    :accessor hyperlink-foreground-colour)
+    :initarg :hyperlink-fg
+    :writer (setf hyperlink-foreground-colour))
    (hypertext-start-topic :initform "Start" :initarg :start-topic
                           :accessor hypertext-start-topic)
    (hypertext-history :initform nil :accessor hypertext-history))
   (:documentation
    "Press BACKSPACE or LEFT arrow to go back to the last topic.
 Press HOME to go back to the 'root' or 'start' topic."))
+
+
+(defmethod hyperlink-foreground-colour ((win <Hypertext-Window>))
+  (if (slot-boundp win 'hyperlink-foreground-colour)
+      (slot-value win 'hyperlink-foreground-colour)
+      (hyperlink-foreground-colour *window-theme*)))
 
 
 (defmethod hypertext-current-topic ((win <Hypertext-Window>))
@@ -3449,7 +3707,8 @@ should return a string which will be used as the text of the topic."
     (open-hypertext-topic win (hypertext-start-topic win))))
 
 
-(defun make-autolinks-in-hypertext-database (db &key (fg :blue))
+(defun make-autolinks-in-hypertext-database
+    (db &key (fg (hyperlink-foreground-colour *window-theme*)))
   "* Arguments
 - DB :: A hashtable of topic titles keyed to text strings.
 * Returns
@@ -3482,28 +3741,27 @@ the internal format recognised by the GUI."
     (setf (gethash topic db) text)))
 
 
-(defmethod send-to-window ((win <Hypertext-Window>) (data (eql :dialog))
-                                   topic winx winy)
-  (format t "Window ~A received topic ~S~%" win topic)
-  (open-hypertext-topic win topic))
+(defmethod send-to-window ((win <Hypertext-Window>) (event <GUI-Dialog-Event>))
+  (let ((topic (gui-event-string event)))
+    (open-hypertext-topic win topic)))
 
 
-(defmethod send-key-to-window :around ((win <Hypertext-Window>)
-                                       (k key) winx winy)
-  (declare (ignore winx winy))
-  (when (key-pressed k)
-    (print k)
-    (cond
-      ((and (hypertext-history win)
-            (find (key-vk k) '(:backspace :left :kp4)))
-       (pop (hypertext-history win))
-       (open-hypertext-topic win (hypertext-current-topic win))
-       k)
-      ((eql (key-vk k) :home)
-       (open-hypertext-topic win (hypertext-start-topic win))
-       k)
-      (t
-       (call-next-method)))))
+(defmethod send-to-window :around ((win <Hypertext-Window>)
+                                   (event <Key-Event>))
+  (let ((k (gui-event-keypress event)))
+    (when (key-pressed k)
+      (print k)
+      (cond
+        ((and (hypertext-history win)
+              (find (key-vk k) '(:backspace :left :kp4)))
+         (pop (hypertext-history win))
+         (open-hypertext-topic win (hypertext-current-topic win))
+         k)
+        ((eql (key-vk k) :home)
+         (open-hypertext-topic win (hypertext-start-topic win))
+         k)
+        (t
+         (call-next-method))))))
 
 
 
@@ -3514,14 +3772,14 @@ the internal format recognised by the GUI."
   ((window-show-tail-by-default? :initform t)
    (window-prompt :initform "> " :initarg :prompt :accessor window-prompt)
    ;; Colours for the prompt, and the input text
-   (window-prompt-foreground :initform nil :initarg :prompt-fg
-                             :accessor window-prompt-foreground)
-   (window-prompt-background :initform nil :initarg :prompt-bg
-                             :accessor window-prompt-background)
-   (window-input-foreground :initform nil :initarg :input-fg
-                             :accessor window-input-foreground)
-   (window-input-background :initform nil :initarg :input-bg
-                             :accessor window-input-background)
+   (window-prompt-foreground :initarg :prompt-fg
+                             :writer (setf window-prompt-foreground))
+   (window-prompt-background :initarg :prompt-bg
+                             :writer (setf window-prompt-background))
+   (window-input-foreground :initarg :input-fg
+                             :writer (setf window-input-foreground))
+   (window-input-background :initarg :input-bg
+                             :writer (setf window-input-background))
    (window-echo-input? :initform t :initarg :echo-input?
                        :accessor window-echo-input?
                        :documentation "After enter is pressed, should the
@@ -3545,15 +3803,37 @@ the current 'input string' changes. Internal slot.")
 when a line of input is entered in the window.")))
 
 
+(defmethod window-prompt-foreground ((win <Terminal-Window>))
+  (if (slot-boundp win 'window-prompt-foreground)
+      (slot-value win 'window-prompt-foreground)
+      (window-prompt-foreground *window-theme*)))
+
+(defmethod window-prompt-background ((win <Terminal-Window>))
+  (if (slot-boundp win 'window-prompt-background)
+      (slot-value win 'window-prompt-background)
+      (window-prompt-background *window-theme*)))
+
+(defmethod window-input-foreground ((win <Terminal-Window>))
+  (if (slot-boundp win 'window-input-foreground)
+      (slot-value win 'window-input-foreground)
+      (window-input-foreground *window-theme*)))
+
+(defmethod window-input-background ((win <Terminal-Window>))
+  (if (slot-boundp win 'window-input-background)
+      (slot-value win 'window-input-background)
+      (window-input-background *window-theme*)))
+
+
 (defmethod initialize-instance :after ((win <Terminal-Window>) &key)
-  (unless (window-prompt-foreground win)
-    (setf (window-prompt-foreground win) (window-foreground win)))
-  (unless (window-prompt-background win)
-    (setf (window-prompt-background win) (window-background win)))
-  (unless (window-input-foreground win)
-    (setf (window-input-foreground win) (window-foreground win)))
-  (unless (window-input-background win)
-    (setf (window-input-background win) (window-background win))))
+  )
+  ;; (unless (window-prompt-foreground win)
+  ;;   (setf (window-prompt-foreground win) (window-foreground win)))
+  ;; (unless (window-prompt-background win)
+  ;;   (setf (window-prompt-background win) (window-background win)))
+  ;; (unless (window-input-foreground win)
+  ;;   (setf (window-input-foreground win) (window-foreground win)))
+  ;; (unless (window-input-background win)
+  ;;   (setf (window-input-background win) (window-background win))))
 
 
 (defmethod window-page-length ((win <Terminal-Window>))
@@ -3650,92 +3930,92 @@ when a line of input is entered in the window.")))
     retval))
 
 
-(defmethod send-key-to-window :around ((win <Terminal-Window>) (k key)
-                                       winx winy)
-  (declare (ignore winx winy))
-  (cond
-    ((window-input-active? win)
-     (when (key-pressed k)
-       (let ((pagelen (- (window-height win) 2))
-             (num-items (length (window-items win))))
-         (cond
-           ((graphic-char-p (key-c k))
-            (window-insert-character win (key-c k)))
-           ((eql :backspace (key-vk k))
-            (window-backspace-character win))
-           ((eql :delete (key-vk k))
-            (window-delete-character win))
-           ((eql :enter (key-vk k))
-            (send-string-to-terminal win)
-            (setf (window-input-cursor win) 0)
-            ;; (setf (nth (window-input-history-position win)
-            ;;            (window-input-history win))
-            ;;       (window-input-string win))
-            (setf (window-input-history win)
-                  (append
-                   (remove ""
-                           (append (window-input-history win)
-                                   (list (window-input-string win)))
-                           :test #'string=)
-                   (list "")))
-            (setf (window-input-history-position win)
-                  (1- (length (window-input-history win))))
-            (setf (window-input-string win) nil)
-            (if (eql :transient (window-input-active? win))
-                (setf (window-input-active? win) nil)))
-           ((eql :left (key-vk k))
-            (when (plusp (window-input-cursor win))
-              (decf (window-input-cursor win))
-              (render-input-string win)))
-           ((eql :right (key-vk k))
-            (when (< (window-input-cursor win)
-                     (length (window-input-string win)))
-              (incf (window-input-cursor win))
-              (render-input-string win)))
-           ((eql :home (key-vk k))
-            (setf (window-input-cursor win) 0)
-            (render-input-string win))
-           ((eql :end (key-vk k))
-            (setf (window-input-cursor win)
-                  (length (window-input-string win)))
-            (render-input-string win))
-           ((eql :up (key-vk k))
-            (when (plusp (window-input-history-position win))
+(defmethod send-to-window :around ((win <Terminal-Window>) (event <Key-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (k gui-event-keypress)) event
+    (cond
+      ((window-input-active? win)
+       (when (key-pressed k)
+         (let ((pagelen (- (window-height win) 2))
+               (num-items (length (window-items win))))
+           (cond
+             ((graphic-char-p (key-c k))
+              (window-insert-character win (key-c k)))
+             ((eql :backspace (key-vk k))
+              (window-backspace-character win))
+             ((eql :delete (key-vk k))
+              (window-delete-character win))
+             ((eql :enter (key-vk k))
+              (send-string-to-terminal win)
+              (setf (window-input-cursor win) 0)
               ;; (setf (nth (window-input-history-position win)
               ;;            (window-input-history win))
               ;;       (window-input-string win))
-              (decf (window-input-history-position win))
-              (setf (window-input-string win)
-                    (nth (window-input-history-position win)
-                         (window-input-history win)))
+              (setf (window-input-history win)
+                    (append
+                     (remove ""
+                             (append (window-input-history win)
+                                     (list (window-input-string win)))
+                             :test #'string=)
+                     (list "")))
+              (setf (window-input-history-position win)
+                    (1- (length (window-input-history win))))
+              (setf (window-input-string win) nil)
+              (if (eql :transient (window-input-active? win))
+                  (setf (window-input-active? win) nil)))
+             ((eql :left (key-vk k))
+              (when (plusp (window-input-cursor win))
+                (decf (window-input-cursor win))
+                (render-input-string win)))
+             ((eql :right (key-vk k))
+              (when (< (window-input-cursor win)
+                       (length (window-input-string win)))
+                (incf (window-input-cursor win))
+                (render-input-string win)))
+             ((eql :home (key-vk k))
+              (setf (window-input-cursor win) 0)
+              (render-input-string win))
+             ((eql :end (key-vk k))
               (setf (window-input-cursor win)
                     (length (window-input-string win)))
-              (render-input-string win)))
-           ((eql :down (key-vk k))
-            (when (< (window-input-history-position win)
-                     (1- (length (window-input-history win))))
-              ;; (setf (nth (window-input-history-position win)
-              ;;            (window-input-history win))
-              ;;       (window-input-string win))
-              (incf (window-input-history-position win))
-              (setf (window-input-string win)
-                    (nth (window-input-history-position win)
-                         (window-input-history win)))
-              (setf (window-input-cursor win)
-                    (length (window-input-string win)))
-              (render-input-string win)))
-           (t
-            (return-from send-key-to-window (call-next-method))))
-         (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
-         (move-cursor-to win (window-offset win))
-         ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
-         ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
-         ;;            (window-offset win) (window-cursor win) num-items)
-         (prepare-window win)
-         (redraw-window-area win))
-       k))
-    (t
-     (call-next-method))))
+              (render-input-string win))
+             ((eql :up (key-vk k))
+              (when (plusp (window-input-history-position win))
+                ;; (setf (nth (window-input-history-position win)
+                ;;            (window-input-history win))
+                ;;       (window-input-string win))
+                (decf (window-input-history-position win))
+                (setf (window-input-string win)
+                      (nth (window-input-history-position win)
+                           (window-input-history win)))
+                (setf (window-input-cursor win)
+                      (length (window-input-string win)))
+                (render-input-string win)))
+             ((eql :down (key-vk k))
+              (when (< (window-input-history-position win)
+                       (1- (length (window-input-history win))))
+                ;; (setf (nth (window-input-history-position win)
+                ;;            (window-input-history win))
+                ;;       (window-input-string win))
+                (incf (window-input-history-position win))
+                (setf (window-input-string win)
+                      (nth (window-input-history-position win)
+                           (window-input-history win)))
+                (setf (window-input-cursor win)
+                      (length (window-input-string win)))
+                (render-input-string win)))
+             (t
+              (return-from send-to-window (call-next-method))))
+           (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
+           (move-cursor-to win (window-offset win))
+           ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
+           ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
+           ;;            (window-offset win) (window-cursor win) num-items)
+           (prepare-window win)
+           (redraw-window-area win))
+         k))
+      (t
+       (call-next-method)))))
 
 
 (defmethod window-insert-character ((win <Terminal-Window>) (ch character))
@@ -3754,8 +4034,6 @@ when a line of input is entered in the window.")))
        (setf (window-input-string win) (concatenate 'string
                                                     (string ch) instr)))
       (t
-       (format t "~S + ~S + ~S~%" (subseq instr 0 cur) (string ch)
-               (subseq instr cur))
        (setf (window-input-string win)
              (concatenate 'string (subseq instr 0 cur) (string ch)
                           (subseq instr cur)))))
@@ -3870,38 +4148,34 @@ when clicked on."))
                  (make-coloured-string str :dialog? t :win win)))
 
 
-(defmethod send-to-window ((win <Dialog-Window>) (data (eql :hover))
-                           (parm (eql :unspecified)) winx winy)
-  (let ((foreground (gethash (console-get-char-foreground
-                              (dialog-console win) winx winy)
-                             *colour->dialog-table*)))
-    (if foreground
-        (send-to-window win :hover foreground winx winy)
-        ;; else
-        (call-next-method))))
+(defmethod send-to-window ((win <Dialog-Window>) (event <Mouse-Hover-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (data gui-event-focus)) event
+    (unless data
+      (setf data (gethash (console-get-char-foreground
+                           (dialog-console win) winx winy)
+                          *colour->dialog-table*)))
+    (cond
+      ((null data)
+       (call-next-method)))))
 
 
 
-(defmethod send-to-window :around ((win <Dialog-Window>) (data (eql :left))
-                                   parm winx winy)
-  (declare (ignore parm))
-  (let ((col (console-get-char-foreground (dialog-console win) winx winy)))
-    (unless (= col (colour +DIALOG-CONSOLE-DEFAULT-FOREGROUND+))
-      (if (gethash col *colour->dialog-table*)
-           (return-from send-to-window
-             (send-to-window win :dialog
-                             (gethash col *colour->dialog-table*) winx winy))))
-    ;; Still here - no button clicked.
-    (call-next-method)))
-
-
-
-(defmethod send-to-window ((win <Dialog-Window>) (data (eql :dialog))
-                           str winx winy)
-  ;; User left-clicked on a button in the dialog window. The text associated
-  ;; with the button is STR.
-  (declare (ignore str winx winy))
-  )
+(defmethod send-to-window :around ((win <Dialog-Window>) (event <Mouse-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (mouse gui-event-mouse-state)) event
+    (when (mouse-lbutton-pressed mouse)
+      (let ((col (console-get-char-foreground (dialog-console win) winx winy)))
+        (cond
+          ((/= col (colour +DIALOG-CONSOLE-DEFAULT-FOREGROUND+))
+           (if (gethash col *colour->dialog-table*)
+               (send-to-window win (make-instance
+                                    '<GUI-Dialog-Event>
+                                    :string (gethash col *colour->dialog-table*)
+                                    :winx winx :winy winy))))
+          (t
+           ;; Still here - no button clicked.
+           (call-next-method)))))))
 
 
 
@@ -3910,11 +4184,10 @@ when clicked on."))
 
 
 (defclass <Tooltip-Window> (<Dialog-Window>)
-  ((window-framed? :initform t)
-  (window-raise-children-with-parent? :initform nil)
-  (floating-window :accessor floating-window :initform nil))
+  ((window-raise-children-with-parent? :initform nil)
+   (floating-window :accessor floating-window :initform nil))
   (:documentation
-     "Window which displays floating 'tooltips' next to the mouse when hovering over
+   "Window which displays floating 'tooltips' next to the mouse when hovering over
 certain window regions."))
 
 
@@ -3972,42 +4245,43 @@ certain window regions."))
 
 
 (defmethod calculate-floating-window-width ((win <Tooltip-Window>))
-  (max 15 (floor (* 1/2 (window-width win)))))
+  (max 20 (floor (* 1/2 (window-width win)))))
 
 
 
-(defmethod send-to-window :after ((win <Tooltip-Window>) (data (eql :hover))
-                                  parm winx winy)
-  (let ((text (tooltip-text win parm winx winy)))
-    (cond
-      ((null text)
-       ;; if parm is null or uninteresting, make sure the floating window
-       ;; is NOT visible.
-       )
-      ((ok-to-show-tooltip? win)
-       ;; Otherwise:
-       ;; write the text into the floating-window
-       (cond
-         ((equal text (last-text (floating-window win)))
-          (when (window-hidden? (floating-window win))
+(defmethod send-to-window :after ((win <Tooltip-Window>) (event <Mouse-Hover-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (mouse gui-event-mouse-state)) event
+    (let ((text (tooltip-text win (gui-event-focus event) winx winy)))
+      (cond
+        ((null text)
+         ;; if focus is null or uninteresting, make sure the floating window
+         ;; is NOT visible.
+         )
+        ((ok-to-show-tooltip? win)
+         ;; Otherwise:
+         ;; write the text into the floating-window
+         (cond
+           ((equal text (last-text (floating-window win)))
+            (when (window-hidden? (floating-window win))
+              (move-window-beside-mouse (floating-window win))
+              (raise-window (floating-window win) :simple-redraw? nil)))
+           (t
+            (unless (window-hidden? (floating-window win))
+              (hide-window (floating-window win)))
+            (setf (last-text (floating-window win)) text)
+            (clear-messages (floating-window win))
+            (dolist (msg text)
+              (add-message (floating-window win) msg))
+            ;; resize the floating window
+            (resize-window (floating-window win)
+                           (calculate-floating-window-width win)
+                           (min (floor (* 3/4 (screen-height)))
+                                (+ 2 (length (window-items (floating-window win))))))
+            (prepare-window (floating-window win))
+            ;; move the floating window to an appropriate spot beside the mouse
             (move-window-beside-mouse (floating-window win))
-            (raise-window (floating-window win) :simple-redraw? nil)))
-         (t
-          (unless (window-hidden? (floating-window win))
-            (hide-window (floating-window win)))
-          (setf (last-text (floating-window win)) text)
-          (clear-messages (floating-window win))
-          (dolist (msg text)
-            (add-message (floating-window win) msg))
-          ;; resize the floating window
-          (resize-window (floating-window win)
-                         (calculate-floating-window-width win)
-                         (min (floor (* 3/4 (screen-height)))
-                              (+ 2 (length (window-items (floating-window win))))))
-          (prepare-window (floating-window win))
-          ;; move the floating window to an appropriate spot beside the mouse
-          (move-window-beside-mouse (floating-window win))
-          (raise-window (floating-window win) :simple-redraw? nil)))))))
+            (raise-window (floating-window win) :simple-redraw? nil))))))))
 
 
 
@@ -4063,10 +4337,7 @@ position of the mouse pointer. "
 
 
 
-;;;===========================================================================
-;;; (@> "Viewport")
-;;;===========================================================================
-
+;;; <<Viewport>> ==============================================================
 
 
 (defclass <Viewport> (<Window>)
@@ -4084,7 +4355,7 @@ onto.")
    (view-tly :accessor view-tly :initform 0))
   (:documentation
    "Window that looks onto a 'map' console, which is usually larger than the
-viewport. "))
+viewport, but can be the same size or even smaller. "))
 
 
 
@@ -4332,6 +4603,24 @@ is initially positioned with top left corner TLX,TLY on the map console."
    (console-get-char (map-console win) mapx mapy)))
 
 
+
+(defmethod map-set-foreground-at ((win <Viewport>) colour mapx mapy
+                                &key (redraw *auto-redraw*))
+  (assert (map-console win))
+  (console-set-char-foreground (map-console win) mapx mapy colour)
+  (dolist (w (cons win (window-map-shared win)))
+    (when (in-view? w mapx mapy)
+      (console-blit (map-console win) mapx mapy
+                    1 1
+                    (window-console w)
+                    (mapx->winx w mapx)
+                    (mapy->winy w mapy)
+                    1.0 1.0)
+      (when redraw
+        (redraw-all-at (winx->rootx w (mapx->winx w mapx))
+                       (winy->rooty w (mapy->winy w mapy)))))))
+
+
 (defmethod map-set-background-at ((win <Viewport>) colour mapx mapy
                                 &key (redraw *auto-redraw*))
   (assert (map-console win))
@@ -4350,52 +4639,55 @@ is initially positioned with top left corner TLX,TLY on the map console."
 
 
 
-(defmethod send-to-window ((win <Viewport>) (data (eql :hover)) parm winx winy)
-  (declare (ignore parm winx winy))
+(defmethod send-to-window ((win <Viewport>) (event <Mouse-Hover-Event>))
   nil)
 
 
-(defmethod send-to-window ((win <Viewport>) (data (eql :left-drag))
-                           rodent winx winy)
-  (let* ((start-cx (mouse-cx rodent))
-         (start-cy (mouse-cy rodent))
-         (started-dragging? nil)
-         (prev-cx start-cx) (prev-cy start-cy)
-         (deltax 0) (deltay 0))
-    (iterate
-      (while (mouse-lbutton (setf rodent (mouse-get-status))))
-      ;; Update position of WIN based on mouse position
-      ;; offsetx = cx - view-tlx
-      ;; therefore cx - offsetx = current view-tlx
-      ;;
-      (setf deltax (- prev-cx
-                      (constrain (mouse-cx rodent)
-                                 (window-tlx win)
-                                 (window-brx win))))
-      (setf deltay (- prev-cy
-                      (constrain (mouse-cy rodent)
-                                 (window-tly win)
-                                 (window-bry win))))
-      (unless (and (= deltax deltay 0))
-        (unless started-dragging?
-          (setf started-dragging? t)
-          (raise-window win)
+(defmethod send-to-window ((win <Viewport>) (event <GUI-Mouse-Drag-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (rodent gui-event-mouse-state)) event
+    (let* ((start-cx (mouse-cx rodent))
+           (start-cy (mouse-cy rodent))
+           (started-dragging? nil)
+           (prev-cx start-cx) (prev-cy start-cy)
+           (deltax 0) (deltay 0))
+      (iterate
+        (while (mouse-lbutton (setf rodent (mouse-get-status))))
+        ;; Update position of WIN based on mouse position
+        ;; offsetx = cx - view-tlx
+        ;; therefore cx - offsetx = current view-tlx
+        ;;
+        (setf deltax (- prev-cx
+                        (constrain (mouse-cx rodent)
+                                   (window-tlx win)
+                                   (window-brx win))))
+        (setf deltay (- prev-cy
+                        (constrain (mouse-cy rodent)
+                                   (window-tly win)
+                                   (window-bry win))))
+        (unless (and (= deltax deltay 0))
+          (unless started-dragging?
+            (setf started-dragging? t)
+            (raise-window win)
+            (prepare-window win)
+            (redraw-window win)
+            (console-flush))
+          (incf (view-tlx win) deltax)
+          (incf (view-tly win) deltay)
+          (setf prev-cx (mouse-cx rodent))
+          (setf prev-cy (mouse-cy rodent))
           (prepare-window win)
           (redraw-window win)
-          (console-flush))
-        (incf (view-tlx win) deltax)
-        (incf (view-tly win) deltay)
-        (setf prev-cx (mouse-cx rodent))
-        (setf prev-cy (mouse-cy rodent))
-        (prepare-window win)
-        (redraw-window win)
-        (console-flush)))
-    (cond
-      (started-dragging?
-       (redraw-window-area win)
-       (console-flush))
-      (t ;; never actually dragged - interpret as left-click
-       (send-to-window win :left nil winx winy)))))
+          (console-flush)))
+      (cond
+        (started-dragging?
+         (redraw-window-area win)
+         (console-flush))
+        (t ;; never actually dragged - interpret as left-click
+         (send-to-window win (make-instance '<Mouse-Event>
+                                            :mouse-state
+                                            (tcod:make-mouse :lbutton-pressed t)
+                                            :winx winx :winy winy)))))))
 
 
 
@@ -4404,10 +4696,14 @@ is initially positioned with top left corner TLX,TLY on the map console."
 ;;; <<Top-level functions>> ===================================================
 
 
+(defvar *screen-resolution-x* nil)
+(defvar *screen-resolution-y* nil)
+
+
 (defun start-gui (&key
                   (title "The Doryen Library")
-                  (width 80)
-                  (height 25)
+                  (width nil)
+                  (height nil)
                   (font-file *default-font-file*)
                   (fps 20)
                   ;;(font-file-chars-in-columns? t)
@@ -4415,8 +4711,12 @@ is initially positioned with top left corner TLX,TLY on the map console."
   "* Arguments:
 - TITLE: String, used as the title displayed at the top of the TCOD
 window.
-- WIDTH: Width of the TCOD root console, in characters. Default 80.
-- HEIGHT: Height of the TCOD root console, in characters. Default 25.
+- WIDTH: Desired width of the TCOD root console, in characters. Default 80.
+  If NIL or not given, the root console width will be auto-calculated
+  based on screen resolution and font size.
+- HEIGHT: Desired height of the TCOD root console, in characters. Default 25.
+  If NIL or not given, the root console height will be auto-calculated
+  based on screen resolution and font size.
 - FONT-FILE: Path to the font file to use. The default is
 [[*default-font-file*]].
 * Returns: None.
@@ -4428,7 +4728,7 @@ the GUI.
 ;;;               (font-file-rows +DEFAULT-FONT-FILE-ROWS+)
 ;;;               (font-file-background-colour
 ;;;                +DEFAULT-FONT-FILE-BACKGROUND-COLOUR+))
-  (declare (type (integer 1) width height))
+  ;;(declare (type (integer 1) width height))
   (if *dialog->colour-table*
       (clrhash *dialog->colour-table*)
       ;; else
@@ -4450,14 +4750,30 @@ the GUI.
 ;;;                        font-file-columns font-file-rows
 ;;;                        font-file-chars-in-columns?
 ;;;                        (colour font-file-background-colour))
+
+  ;; Store screen resolution, then auto-calculate a sensible width and
+  ;; height based on screen size and character size (unless a particular
+  ;; width and height have been specified)
+
+  (unless (numberp *screen-resolution-x*)
+    (multiple-value-bind (scr-xdim scr-ydim) (sys-get-current-resolution)
+      (setf *screen-resolution-x* scr-xdim
+            *screen-resolution-y* scr-ydim)))
+
+  (multiple-value-bind (ch-xdim ch-ydim) (sys-get-char-size)
+    (unless width
+      (setf width (floor (* 0.8 (/ *screen-resolution-x* ch-xdim)))))
+    (unless height
+      (setf height (floor (* 0.8 (/ *screen-resolution-y* ch-ydim))))))
+
   (console-init-root width height title nil :RENDERER-SDL)
   (start-colours)
   (setf *window-stack* nil)
   (sys-set-fps fps)                     ; limit FPS (and CPU load)
   (setf *temp-con*
-        (console-new width height)) ; must be same size as ROOT
+        (console-new width height))     ; must be same size as ROOT
   (setf *scratch*
-        (console-new width height)) ; must be same size as ROOT
+        (console-new width height))     ; must be same size as ROOT
   (console-clear *root*))
 
 
@@ -4474,6 +4790,137 @@ Calls process-window for each non-hidden window.
   (dolist (win (all-windows))
     (process-window win)))
 
+
+(defvar *rodent* nil)
+(defvar *last-rodent* nil)
+(defvar *topwin* nil)
+(defvar *last-topwin* nil)
+
+(defun main-gui-loop-aux ()
+  (let ((k nil)
+        (mouse-hover-event (make-instance '<Mouse-Hover-Event>)))
+    (iterate
+     (setf k (console-check-for-keypress '(:key-pressed :key-released)))
+     (if k (leave))
+     (process-windows)
+     (setf *rodent* (mouse-get-status))
+     (unless (equal *rodent* *last-rodent*)
+       ;; Deal with mouse events
+       (setf *mouse-x* (mouse-cx *rodent*)
+             *mouse-y* (mouse-cy *rodent*)
+             *topwin* (window-with-focus))
+       (setf *focus-changed?* (not (eql *topwin* *last-topwin*)))
+       (cond
+         ;; L button clicked
+         ((mouse-lbutton-pressed *rodent*)
+          (when *topwin*
+            (cond
+              ((and (=  *mouse-y* (window-tly *topwin*))
+                    (=  *mouse-x* (window-brx *topwin*))
+                    (window-can-close? *topwin*))
+               ;; Clicked on 'X' in top right corner
+               (hide-window *topwin*))
+              (t
+               ;; Clicked somewhere else on the window
+               (raise-window *topwin*)
+               (send-to-window
+                *topwin*
+                (make-instance '<Mouse-Event> :winx (- *mouse-x* (window-tlx *topwin*))
+                                              :winy (- *mouse-y* (window-tly *topwin*))
+                                              :mouse-state *rodent*))))))
+
+         ;; R button clicked
+         ((mouse-rbutton-pressed *rodent*)
+          (when *topwin*
+            (raise-window *topwin*)
+            (send-to-window
+             *topwin*
+             (make-instance '<Mouse-Event> :winx (- *mouse-x* (window-tlx *topwin*))
+                                              :winy (- *mouse-y* (window-tly *topwin*))
+                                              :mouse-state *rodent*))))
+
+         ;; Middle button clicked
+         ((mouse-mbutton-pressed *rodent*)
+          (when *topwin*
+            (raise-window *topwin*)
+               (send-to-window
+                *topwin*
+                (make-instance '<Mouse-Event> :winx (- *mouse-x* (window-tlx *topwin*))
+                                              :winy (- *mouse-y* (window-tly *topwin*))
+                                              :mouse-state *rodent*))))
+
+         ;; L button held down
+         ((mouse-lbutton *rodent*)
+          (when *topwin*
+            (raise-window *topwin*)
+            (let ((start (get-internal-real-time))
+                  (dragged? nil))
+              (declare (ignorable dragged?))
+              (iterate
+               (while (mouse-lbutton (setf *rodent* (mouse-get-status))))
+               (unless (and (< (get-internal-real-time)
+                               (+ start (/ (* *drag-delay* 1000)
+                                           internal-time-units-per-second)))
+                            (zerop (mouse-dx *rodent*))
+                            (zerop (mouse-dy *rodent*)))
+                 (setf dragged? t)
+                 (cond
+                   ((and (window-can-drag? *topwin*)
+                         (on-upper-window-border?
+                          *topwin*
+                          (- *mouse-x* (window-tlx *topwin*))
+                          (- *mouse-y* (window-tly *topwin*))))
+                    ;; Dragging on title bar - move the window
+                    (mouse-drag-window *topwin* *rodent*))
+                   ((and (window-can-resize? *topwin*)
+                         (= *mouse-y* (+ (window-tly *topwin*)
+                                         (1- (window-height *topwin*))))
+                         (= *mouse-x* (+ (window-tlx *topwin*)
+                                         (1- (window-width *topwin*)))))
+                    ;; Dragging on bottom right corner
+                    (mouse-resize-window *topwin* *rodent*))
+                   (t
+                    (send-to-window
+                     *topwin*
+                     (make-instance '<GUI-Mouse-Drag-Event>
+                               :winx (- *mouse-x* (window-tlx *topwin*))
+                               :winy (- *mouse-y* (window-tly *topwin*))
+                               :mouse-state *rodent*))))
+                 (return))))))
+
+         (t                             ; mouse "just hovering"
+                                        ;(break)
+          (when *topwin*
+            (setf (gui-event-winx mouse-hover-event)
+                  (- *mouse-x* (window-tlx *topwin*)))
+            (setf (gui-event-winy mouse-hover-event)
+                  (- *mouse-y* (window-tly *topwin*)))
+            (setf (gui-event-mouse-state mouse-hover-event) *rodent*)
+            (send-to-window *topwin* mouse-hover-event))))
+       ;; CONSOLE-FLUSH should not be done every iteration, which
+       ;; is what was happening below.
+       ;; This has been changed so now we only flush the console if the
+       ;; mouse moves/mouse status changes, or a key is pressed.
+       ;; It seems to work.
+       ;;
+       ;; Alternative plan could be to time since last flush, limit to
+       ;; < 20 fps.
+       (unless (equal *rodent* *last-rodent*)
+         (setf *last-rodent* *rodent*)
+         (console-flush))
+       ))
+    (when k
+      (case (key-vk k)
+        (:shift (setf *shift* (key-pressed k)))
+        (:control (setf *ctrl* (key-pressed k)))
+        (:alt (setf *alt* (key-pressed k)))
+        (:printscreen (tcod:sys-save-screenshot))
+        (otherwise
+         ;; send (vk k) to window under mouse
+         (when (setf *topwin* (window-with-focus))
+           (send-key-to-window *topwin* k
+                               (- *mouse-x* (window-tlx *topwin*))
+                               (- *mouse-y* (window-tly *topwin*)))))))))
 
 
 
@@ -4495,147 +4942,26 @@ function =sys-save-screenshot=.
 
 The loop runs until the global variable [[*exit-gui?*]] is non-nil.
 "
-  (let ((k (make-key))
-        (rodent (make-mouse))
-        (last-rodent (make-mouse))
-        (topwin nil) (last-topwin nil))
+  (let ((*rodent* (make-mouse))
+        (*last-rodent* (make-mouse))
+        (*topwin* nil) (*last-topwin* nil))
     (redraw-all-windows)
     (setf *exit-gui?* nil)
     ;; Main loop
     (iterate
-      (until *exit-gui?*)
+      (until (or *exit-gui?*
+                 (console-is-window-closed?)))
+      ;; The following snippet is taken from
+      ;; http://code.google.com/p/lispbuilder/wiki/PortableInteractiveDevelopment
+      ;; and allows swank to process commands from slime during the game loop.
+      #+swank (let ((connection
+                      (or swank::*emacs-connection* (swank::default-connection))))
+                (when (and connection (not (eql swank:*communication-style* :spawn)))
+                  (swank::handle-requests connection t)))
       (console-flush)
-      (iterate
-        (setf k (console-check-for-keypress
-                 '(:key-pressed :key-released)))
-        (if k (leave))
-        (process-windows)
-        (setf rodent (mouse-get-status))
-        (unless (equal rodent last-rodent)
-          ;; Deal with mouse events
-          (setf *mouse-x* (mouse-cx rodent)
-                *mouse-y* (mouse-cy rodent)
-                topwin (window-with-focus))
-          (setf *focus-changed?* (not (eql topwin last-topwin)))
-          (cond
-            ;; L button clicked
-            ((mouse-lbutton-pressed rodent)
-             (when topwin
-               (cond
-                 ((and (=  *mouse-y* (window-tly topwin))
-                       (=  *mouse-x* (window-brx topwin))
-                       (window-can-close? topwin))
-                  ;; Clicked on 'X' in top right corner
-                  (hide-window topwin))
-                 (t
-                  ;; Clicked somewhere else on the window
-                  (raise-window topwin)
-                  (send-to-window topwin :left nil
-                                  (- *mouse-x* (window-tlx topwin))
-                                  (- *mouse-y* (window-tly topwin)))))))
-
-            ;; R button clicked
-            ((mouse-rbutton-pressed rodent)
-             (when topwin
-               (raise-window topwin)
-               (send-to-window topwin :right nil
-                               (- *mouse-x* (window-tlx topwin))
-                               (- *mouse-y* (window-tly topwin)))))
-
-            ;; Middle button clicked
-            ((mouse-mbutton-pressed rodent)
-             (when topwin
-               (raise-window topwin)
-               (send-to-window topwin :middle nil
-                               (- *mouse-x* (window-tlx topwin))
-                               (- *mouse-y* (window-tly topwin)))))
-
-            ;; Mouse Wheel events
-            ;; Removed from libtcod
-            ;; ((mouse-wheel-up rodent)
-            ;;  (when topwin
-            ;;    (send-to-window topwin :wheel-up nil
-            ;;                 (- *mouse-x* (window-tlx topwin))
-            ;;                 (- *mouse-y* (window-tly topwin)))))
-            ;; ((mouse-wheel-down rodent)
-            ;;  (when topwin
-            ;;    (send-to-window topwin :wheel-down nil
-            ;;                 (- *mouse-x* (window-tlx topwin))
-            ;;                 (- *mouse-y* (window-tly topwin)))))
-
-            ;; L button held down
-            ((mouse-lbutton rodent)
-             (when topwin
-               (raise-window topwin)
-               (let ((start (get-internal-real-time))
-                     (dragged? nil))
-                 (declare (ignorable dragged?))
-                 (iterate
-                   (while (mouse-lbutton (setf rodent (mouse-get-status))))
-                   (unless (and (< (get-internal-real-time)
-                                   (+ start (/ (* *drag-delay* 1000)
-                                               internal-time-units-per-second)))
-                                (zerop (mouse-dx rodent))
-                                (zerop (mouse-dy rodent)))
-                     (setf dragged? t)
-                     (cond
-                       ((and (window-can-drag? topwin)
-                             (on-upper-window-border?
-                              topwin
-                              (- *mouse-x* (window-tlx topwin))
-                              (- *mouse-y* (window-tly topwin))))
-                        ;; Dragging on title bar - move the window
-                        (mouse-drag-window topwin rodent))
-                       ((and (window-can-resize? topwin)
-                             (= *mouse-y* (+ (window-tly topwin)
-                                             (1- (window-height topwin))))
-                             (= *mouse-x* (+ (window-tlx topwin)
-                                             (1- (window-width topwin)))))
-                        ;; Dragging on bottom right corner
-                        (mouse-resize-window topwin rodent))
-                       (t
-                        (send-to-window topwin :left-drag rodent
-                                        (- *mouse-x* (window-tlx topwin))
-                                        (- *mouse-y* (window-tly topwin)))))
-                     (return))))))
-            ;; (unless dragged?
-            ;;   ;; Just click
-            ;;   (send-to-window topwin :left nil
-            ;;             (- *mouse-x* (window-tlx topwin))
-            ;;             (- *mouse-y* (window-tly topwin)))))))
-
-
-            (t                          ; mouse "just hovering"
-                                        ;(break)
-             (when topwin
-               (send-to-window topwin :hover :unspecified ;(mouse-flags rodent)
-                               (- *mouse-x* (window-tlx topwin))
-                               (- *mouse-y* (window-tly topwin))))))
-          ;; CONSOLE-FLUSH should not be done every iteration, which
-          ;; is what was happening below.
-          ;; This has been changed so now we only flush the console if the
-          ;; mouse moves/mouse status changes, or a key is pressed.
-          ;; It seems to work.
-          ;;
-          ;; Alternative plan could be to time since last flush, limit to
-          ;; < 20 fps.
-          (unless (equal rodent last-rodent)
-            (setf last-rodent rodent)
-            (console-flush))
-          ))
-
-      (case (key-vk k)
-        (:shift (setf *shift* (key-pressed k)))
-        (:control (setf *ctrl* (key-pressed k)))
-        (:alt (setf *alt* (key-pressed k)))
-        (:printscreen (tcod:sys-save-screenshot))
-        (otherwise
-         ;; send (vk k) to window under mouse
-         (when (setf topwin (window-with-focus))
-           (send-key-to-window topwin k
-                               (- *mouse-x* (window-tlx topwin))
-                               (- *mouse-y* (window-tly topwin)))))))
-    k))
+      ;; Inner part of loop moved into separate function, to allow redefinition
+      ;; while within the loop.
+      (main-gui-loop-aux))))
 
 
 

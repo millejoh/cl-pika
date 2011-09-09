@@ -1,4 +1,4 @@
-;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp; Base: 10 -*- ;;;;;;;;;;;;;;;;;80
+;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp; coding: utf-8-unix -*- ;;;;;;;;80
 
 ;;;; guidemo executable created in Clozure Common Lisp:
 ;;;; (ccl:save-application "guidemo" :toplevel-function #'gui-demo:gui-demo
@@ -11,11 +11,16 @@
 
 (defpackage :tcod.gui-demo
   (:nicknames :gui-demo)
-  (:use :cl :tcod :dormouse)
+  (:use :cl :tcod :dormouse :iterate)
   (:export #:gui-demo
            #:resume-gui))
 
 (in-package :tcod.gui-demo)
+
+;;; The file 'maze.txt' can be recreated with
+;;; (maze:make-maze :rb 120 120)
+;;; (with-open-file (s "maze.txt" :direction :output)
+;;;            (maze:print-maze s))
 
 ;;; Global variables which will hold references to the various window objects,
 ;;; etc
@@ -51,7 +56,7 @@ COLOURNAME is a keyword that will be associated with the new colour.
 R, G and B are byte values (0-255) that define the new colour.")
 
 (defvar *maze-file* "maze.txt")
-(defvar *font-file* "Kai-1280x400.png")
+(defparameter *font-file* "MDA9x14.png")
 
 (defvar *ht-database* nil)
 (defvar *hypertext-fg-colour* :light-blue)
@@ -69,24 +74,23 @@ R, G and B are byte values (0-255) that define the new colour.")
 ;;; that they print messages on the bottom of the screen giving information
 ;;; about mouse position and events.
 
-(defmethod send-to-window ((win <Window>) data parm winx winy)
-  (case data
-    (:hover
+(defmethod send-to-window ((win <Window>) (event <Mouse-Hover-Event>))
      (bottom-message "[~C~C~C] ~40,'0B   "
                      (if *shift* #\S #\space)
                      (if *ctrl* #\C #\space)
                      (if *alt* #\A #\space)
-                     parm))
-    (otherwise
-     (console-print *root* 0 (1- (console-get-height *root*))
-                          "Window ~A received event ~S at (~D, ~D) "
-                          win data winx winy))))
+                     (dormouse:gui-event-focus event)))
 
 
-(defmethod send-to-window ((win <List-Window>) (data (eql :hover))
-			   parm winx winy)
-  (declare (ignore winx winy))
-  (bottom-message "Current selected item: ~S" parm))
+(defmethod send-to-window ((win <Window>) (event t))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)) event
+    (console-print *root* 0 (1- (console-get-height *root*))
+                   "Window ~A received ~S at (~D, ~D) "
+                   win event winx winy)))
+
+
+(defmethod send-to-window ((win <List-Window>) (event <Mouse-Hover-Event>))
+  (bottom-message "Current selected item: ~S" (gui-event-focus event)))
 
 
 ;;; Make our own subclass of `Viewport' so we can modify its behaviour.
@@ -103,13 +107,20 @@ R, G and B are byte values (0-255) that define the new colour.")
 
 
 (defmethod initialize-instance :after ((win <MyViewport>) &key)
-  (let ((maze
+  (let* ((maze-xdim 0)
+         (maze-ydim 0)
+         (maze
          (with-open-file (s *maze-file* :direction :input)
-           (loop while (listen s)
-              collect (read-line s nil)))))
+           (iterate
+             (while (listen s))
+             (for line = (read-line s nil))
+             (setf maze-xdim (max maze-xdim (length line)))
+             (incf maze-ydim)
+             (collecting line)))))
     (loop for x from 0 below (map-xdim win)
        do (loop for y from 0 below (map-ydim win) do
-	       (let ((it (char (nth (1+ y) maze) (1+ x))))
+	       (let ((it (char (nth (mod (1+ y) maze-ydim) maze)
+                               (mod (1+ x) maze-xdim))))
 		 (cond
 		   ((equal #\# it)
 		    (map-draw-char-at win #\# x y :fg :light-blue
@@ -119,89 +130,72 @@ R, G and B are byte values (0-255) that define the new colour.")
                       :fg :yellow)))
 
 
-(defmethod send-key-to-window :around ((win <MyViewport>) (k key) winx winy)
-  (declare (ignore winx winy))
-  (let ((old-cx (cursorx win))
-        (old-cy (cursory win)))
-    (when (key-pressed k)
-      (case (key-vk k)
-        (:up (decf (cursory win)))
-        (:down (incf (cursory win)))
-        (:left (decf (cursorx win)))
-        (:right (incf (cursorx win)))
-        (:char
-         (setf (cursor-char win) (key-c k))
-         (add-message *msgwin* "You pressed `~C'." (key-c k))
-         (prepare-window *msgwin*)
-         (redraw-window-area *msgwin*)
-         ;;(console-flush)
-         (if (eql #\q (key-c k))
-             (setf *exit-gui?* t)))
-        (otherwise
-         (return-from send-key-to-window (call-next-method))))
-      (setf (cursorx win) (max 0 (cursorx win)
-                               (min (cursorx win) (1- (window-width win)))))
-      (setf (cursory win) (max 0 (cursory win)
-                               (min (cursory win) (1- (window-height win)))))
-      (cond
-        ((eql #\# (map-char-at win (cursorx win) (cursory win)))
-         (setf (cursorx win) old-cx
-               (cursory win) old-cy)
-         (raise-window *alertwin*))
-        (t
-         (map-draw-char-at win #\space old-cx old-cy :fg :yellow)
-         (map-draw-char-at win (cursor-char win) (cursorx win) (cursory win)
-                           :fg :yellow :redraw t))))))
+(defmethod send-to-window :around ((win <MyViewport>) (event <Key-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (k gui-event-keypress)) event
+    (let ((old-cx (cursorx win))
+          (old-cy (cursory win)))
+      (when (key-pressed k)
+        (case (key-vk k)
+          (:up (decf (cursory win)))
+          (:down (incf (cursory win)))
+          (:left (decf (cursorx win)))
+          (:right (incf (cursorx win)))
+          (:char
+           (setf (cursor-char win) (key-c k))
+           (add-message *msgwin* "You pressed `~C'." (key-c k))
+           (prepare-window *msgwin*)
+           (redraw-window-area *msgwin*)
+           ;;(console-flush)
+           (if (eql #\q (key-c k))
+               (setf *exit-gui?* t)))
+          (otherwise
+           (return-from send-to-window (call-next-method))))
+        (setf (cursorx win) (max 0 (cursorx win)
+                                 (min (cursorx win) (1- (window-width win)))))
+        (setf (cursory win) (max 0 (cursory win)
+                                 (min (cursory win) (1- (window-height win)))))
+        (cond
+          ((eql #\# (map-char-at win (cursorx win) (cursory win)))
+           (setf (cursorx win) old-cx
+                 (cursory win) old-cy)
+           (raise-window *alertwin*))
+          (t
+           (map-draw-char-at win #\space old-cx old-cy :fg :yellow)
+           (map-draw-char-at win (cursor-char win) (cursorx win) (cursory win)
+                             :fg :yellow :redraw t)))))))
 
 
-(defmethod send-to-window ((win <MyViewport>) (data (eql :left)) parm winx winy)
-  (declare (ignore parm))
-  (map-draw-char-at win (char-code #\#)
-		    (winx->mapx win winx)
-		    (winy->mapy win winy)
-		    :fg :green :redraw t))
+(defmethod send-to-window ((win <MyViewport>) (event <Mouse-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)
+               (mouse gui-event-mouse-state)) event
+    (cond
+      ((mouse-lbutton mouse)
+       (call-next-method))
+      ((mouse-lbutton-pressed mouse)
+       (map-draw-char-at win (char-code #\#)
+                         (winx->mapx win winx)
+                         (winy->mapy win winy)
+                         :fg :green :redraw t)))))
 
 
-(defmethod send-to-window ((win <MyViewport>) (data (eql :hover)) parm winx winy)
-  (declare (ignore parm))
-  (bottom-message "~4D fps  [~C~C~C] [~C~C~C] [~C~C~C] MAP POSITION = ~3D ~3D"
-                  (sys-get-fps)
-                  (if *shift* #\S #\space)
-                  (if *ctrl* #\C #\space)
-                  (if *alt* #\A #\space)
-                  (if (plusp (mouse-get-lbutton)) #\L #\space)
-                  (if (plusp (mouse-get-mbutton)) #\M #\space)
-                  (if (plusp (mouse-get-rbutton)) #\R #\space)
-                  (if (plusp (mouse-get-lbutton-pressed)) #\l #\space)
-                  (if (plusp (mouse-get-mbutton-pressed)) #\m #\space)
-                  (if (plusp (mouse-get-rbutton-pressed)) #\r #\space)
-                  (winx->mapx win winx)
-                  (winy->mapy win winy)))
 
+(defmethod send-to-window ((win <MyViewport>) (event <Mouse-Hover-Event>))
+  (with-slots ((winx gui-event-winx) (winy gui-event-winy)) event
+    (bottom-message "~4D fps  [~C~C~C] [~C~C~C] [~C~C~C] MAP POSITION = ~3D ~3D"
+                    (sys-get-fps)
+                    (if *shift* #\S #\space)
+                    (if *ctrl* #\C #\space)
+                    (if *alt* #\A #\space)
+                    (if (plusp (mouse-get-lbutton)) #\L #\space)
+                    (if (plusp (mouse-get-mbutton)) #\M #\space)
+                    (if (plusp (mouse-get-rbutton)) #\R #\space)
+                    (if (plusp (mouse-get-lbutton-pressed)) #\l #\space)
+                    (if (plusp (mouse-get-mbutton-pressed)) #\m #\space)
+                    (if (plusp (mouse-get-rbutton-pressed)) #\r #\space)
+                    (winx->mapx win winx)
+                    (winy->mapy win winy))))
 
-(defclass <MyDialog-Window> (<Dialog-Window>)
-  ())
-
-
-(defmethod prepare-window :after ((win <MyDialog-Window>))
-  (draw-string-at
-   win
-   "Click me {fg:light-blue,click:1}here{/} and {fg:light-green,click:2}here{/}!"
-   1 1))
-
-
-(defmethod send-to-window ((win <MyDialog-Window>) (data (eql :dialog))
-                                   parm winx winy)
-  (add-message-and-redraw *msgwin* "You clicked button `~A'." parm))
-
-
-(defclass <MyMenu-Window> (<Menu-Window>)
-  ())
-
-
-(defmethod send-to-window ((win <MyMenu-Window>) (data (eql :select))
-                                   parm winx winy)
-  (add-message-and-redraw *msgwin* "You chose `~A'." parm))
 
 
 (defclass <MyTooltip-Window> (<Tooltip-Window>)
@@ -287,9 +281,16 @@ R, G and B are byte values (0-255) that define the new colour.")
 (defun gui-demo ()
   (let ((width 0)
 	(height 0))
+    (setf *window-theme*
+          (make-instance '<Window-Theme>
+                         :foreground :white
+                         :background :dark-slate-gray
+                         :prompt-fg :red
+                         :input-fg :red
+                         :hyperlink-fg :light-blue))
     ;;(cffi::use-foreign-library tcod::libtcod)
     (setf *player* (make-instance '<Player>))
-    (start-gui :title "Dormouse demo" :width 100 :height 50
+    (start-gui :title "Dormouse demo"   ;:width 100 :height 50
                :font-file *font-file*)
     (dolist (col *custom-colours*)
       (destructuring-bind (name r g b) col
@@ -304,36 +305,51 @@ R, G and B are byte values (0-255) that define the new colour.")
 				    :background :black
 				    :width width :height (1- height)))
     (setf *smallvp* (make-instance '<Viewport> :tlx 58 :tly 1 :width 12
-                                   :height 12
-                                   :foreground :pink :background :green
-                                   ))
+                                               :height 12))
     (share-map *smallvp* *viewport* 15 13)
-    (setf *tipwin* (make-instance '<MyTooltip-Window> :foreground :black
-                                  :background :yellow
+    (setf *tipwin* (make-instance '<MyTooltip-Window>
                                   :tlx 6 :tly 25 :width 30 :height 11
                                   :title "Tooltips"
                                   :transparency +OPAQUE+))
     ;; Make windows
     (setf *dlgwin*
-	  (make-instance '<MyDialog-Window> :tlx 8 :tly 3 :width 25 :height 8
+	  (make-instance '<Dialog-Window>
+                         :tlx 8 :tly 3 :width 25 :height 8
 			 :title "Dialog" :foreground :grey :background :red
-                         :transparency +OPAQUE+))
+                         :transparency +OPAQUE+
+                         :draw
+                         (lambda (win)
+                           (draw-string-at
+                            win
+                            (concatenate 'string
+                                         "Click me {fg:light-blue,click:1}here{/}"
+                                         " and {fg:light-green,click:2}here{/}!")
+                            1 1))
+                         :event-handler
+                         (lambda (win event)
+                           (declare (ignore win))
+                           (if (typep event '<GUI-Dialog-Event>)
+                               (add-message-and-redraw *msgwin*
+                                                       "You clicked button `~A'."
+                                                       (gui-event-string event))))))
     (make-instance '<Window> :tlx 50 :tly 30 :width 20 :height 12
-		   :title "win2" :foreground :yellow
-		   :background :dark-blue)
+                             :title "win2" :foreground :yellow
+                             :background :dark-blue)
     (setf *termwin*
-          (make-instance '<Terminal-Window> :tlx 5 :tly 12 :width 35 :height 8
+          (make-instance '<Terminal-Window>
+                         :tlx 5 :tly 12 :width 35 :height 8
                          :title "Terminal" :foreground :white :background
                          :dark-slate-gray :prompt "==>"))
     (setf *alertwin*
-	  (make-instance '<Alert-Window> :tlx 6 :tly 15 :width 20 :height 8
-			 :title "Alert!" :foreground :yellow :background :red
-			 :hidden? t :transparency +OPAQUE+ :text
+	  (make-instance '<Alert-Window>
+                         :tlx 6 :tly 15 :width 20 :height 8
+                         :title "Alert!" :foreground :yellow :background :red
+                         :hidden? t :transparency +OPAQUE+ :text
                          "Your path is blocked by a wall! Click 'X' to close."))
     (setf *listwin*
-	  (make-instance '<Filtered-Window> :tlx 21 :tly 38 :width 20 :height 9
-			 :title "list" :foreground :green
-			 :background :chocolate :transparency +OPAQUE+))
+	  (make-instance '<Filtered-Window>
+                         :tlx 21 :tly 38 :width 20 :height 9
+                         :title "list" :transparency +OPAQUE+))
     (add-item *listwin* "a" "a. '{fg:green}apples{/}'" (make-simple-key #\a))
     (add-item *listwin* "b" "b. '{fg:red}plums{/}'" (make-simple-key #\b))
     (add-item *listwin* "c" "c. '{fg:yellow}bananas{/}'" (make-simple-key #\c))
@@ -341,21 +357,28 @@ R, G and B are byte values (0-255) that define the new colour.")
     (add-item *listwin* "e" "e. '{fg:pink}yams{/}'" (make-simple-key #\e))
     (setf *msgwin*
 	  (make-instance '<Log-Window> :tlx 65 :tly 13 :width 33 :height 35
-			 :title "Messages" :foreground :light-blue
-			 :background :dark-blue :transparency +OPAQUE+
-                         :transparency-unfocussed 50))
+                                       :title "Messages" :foreground :light-blue
+                                       :background :dark-blue :transparency +OPAQUE+
+                                       :transparency-unfocussed 50))
     (setf *menuwin*
-	  (make-instance '<MyMenu-Window> :tlx 40 :tly 10 :width 15 :height 7
-			 :title "list" :foreground :light-blue
-			 :background :dark-grey))
+	  (make-instance '<Menu-Window>
+                         :tlx 40 :tly 10 :width 15 :height 7
+                         :title "list"
+                         :event-handler
+                         (lambda (win event)
+                           (declare (ignore win))
+                           (when (typep event '<GUI-Select-Event>)
+                             (add-message-and-redraw *msgwin* "You chose `~A'."
+                                                     (gui-event-focus event))))))
     (setf *statwin*
           (make-instance '<Statistics-Window> :tlx 3 :tly 43 :width 12 :height 4
-                         :background :dark-grey))
+                                              :background :dark-grey))
 
     (initialise-hypertext-database)
 
     (setf *htwin*
-          (make-instance '<Hypertext-Window> :tlx 12 :tly 30 :width 30
+          (make-instance '<Hypertext-Window>
+                         :tlx 12 :tly 30 :width 30
                          :height 12 :title "Hypertext" :foreground :white
                          :background :dark-blue
                          :hyperlink-fg *hypertext-fg-colour*
@@ -370,14 +393,18 @@ R, G and B are byte values (0-255) that define the new colour.")
     (add-item *menuwin* "item3" "Menu item 3" (make-simple-key #\3))
     (add-item *menuwin* "item4" "Menu item 4" (make-simple-key #\4))
     (add-message *msgwin* "Press 'Q' to quit.")
-    (add-message *msgwin* "{yellow}The window where the mouse is hovering has focus.{/}")
+    (add-message *msgwin*
+                 "{yellow}The window where the mouse is hovering has focus.{/}")
     (add-message *msgwin* "Move windows by dragging on their titles.")
-    (add-message *msgwin* "Resize by dragging in bottom right corner of window frame.")
+    (add-message *msgwin*
+                 "Resize by dragging in bottom right corner of window frame.")
     (add-message *msgwin* "Close by clicking 'X' in top right corner.")
     (add-message *msgwin* "Type in the list window to filter by a text string.")
-    (add-message *msgwin* "Click and drag to move the map around in the background.")
+    (add-message *msgwin*
+                 "Click and drag to move the map around in the background.")
     (add-message *msgwin* "Click the active text in the 'Dialog' window.")
-    (add-message *msgwin* "Drag in the small green-and-pink window to view other parts of the background map.")
+    (add-message *msgwin* "Drag in the small green-and-pink window to view ~
+other parts of the background map.")
     (add-message *msgwin* "Press cursor keys to move the yellow '@' around the
     maze.")
     (add-message *termwin* "Type some text and press enter.")
