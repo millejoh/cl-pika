@@ -182,19 +182,20 @@ R, G and B are byte values (0-255) that define the new colour.")
 
 (defmethod send-to-window ((win <MyViewport>) (event <Mouse-Hover-Event>))
   (with-slots ((winx gui-event-winx) (winy gui-event-winy)) event
-    (bottom-message "~4D fps  [~C~C~C] [~C~C~C] [~C~C~C] MAP POSITION = ~3D ~3D"
-                    (sys-get-fps)
-                    (if *shift* #\S #\space)
-                    (if *ctrl* #\C #\space)
-                    (if *alt* #\A #\space)
-                    (if (plusp (mouse-get-lbutton)) #\L #\space)
-                    (if (plusp (mouse-get-mbutton)) #\M #\space)
-                    (if (plusp (mouse-get-rbutton)) #\R #\space)
-                    (if (plusp (mouse-get-lbutton-pressed)) #\l #\space)
-                    (if (plusp (mouse-get-mbutton-pressed)) #\m #\space)
-                    (if (plusp (mouse-get-rbutton-pressed)) #\r #\space)
-                    (winx->mapx win winx)
-                    (winy->mapy win winy))))
+    (let ((mouse (mouse-get-status t)))
+      (bottom-message "~4D fps  [~C~C~C] [~C~C~C] [~C~C~C] MAP POSITION = ~3D ~3D"
+                      (sys-get-fps)
+                      (if *shift* #\S #\space)
+                      (if *ctrl* #\C #\space)
+                      (if *alt* #\A #\space)
+                      (if (mouse-lbutton mouse) #\L #\space)
+                      (if (mouse-mbutton mouse) #\M #\space)
+                      (if (mouse-rbutton mouse) #\R #\space)
+                      (if (mouse-lbutton-pressed mouse) #\l #\space)
+                      (if (mouse-mbutton-pressed mouse) #\m #\space)
+                      (if (mouse-rbutton-pressed mouse) #\r #\space)
+                      (winx->mapx win winx)
+                      (winy->mapy win winy)))))
 
 
 
@@ -290,7 +291,7 @@ R, G and B are byte values (0-255) that define the new colour.")
                          :hyperlink-fg :light-blue))
     ;;(cffi::use-foreign-library tcod::libtcod)
     (setf *player* (make-instance '<Player>))
-    (start-gui :title "Dormouse demo"   ;:width 100 :height 50
+    (start-gui :title "Dormouse demo" :width 100 :height 50
                :font-file *font-file*)
     (dolist (col *custom-colours*)
       (destructuring-bind (name r g b) col
@@ -364,6 +365,11 @@ R, G and B are byte values (0-255) that define the new colour.")
 	  (make-instance '<Menu-Window>
                          :tlx 40 :tly 10 :width 15 :height 7
                          :title "list"
+                         :items
+                         '(("item1" :text "Menu item 1" :key #\1)
+                           ("item2" :text "Menu item 2" :key #\2)
+                           ("item3" :text "Menu item 3" :key #\3)
+                           ("item4" :text "Menu item 4" :key #\4))
                          :event-handler
                          (lambda (win event)
                            (declare (ignore win))
@@ -387,11 +393,6 @@ R, G and B are byte values (0-255) that define the new colour.")
                          (lambda (topic) (gethash (string-upcase topic)
                                              *ht-database*))))
 
-
-    (add-item *menuwin* "item1" "Menu item 1" (make-simple-key #\1))
-    (add-item *menuwin* "item2" "Menu item 2" (make-simple-key #\2))
-    (add-item *menuwin* "item3" "Menu item 3" (make-simple-key #\3))
-    (add-item *menuwin* "item4" "Menu item 4" (make-simple-key #\4))
     (add-message *msgwin* "Press 'Q' to quit.")
     (add-message *msgwin*
                  "{yellow}The window where the mouse is hovering has focus.{/}")
@@ -409,7 +410,5 @@ other parts of the background map.")
     maze.")
     (add-message *termwin* "Type some text and press enter.")
     (add-message *termwin* "Press up and down to navigate the input history.")
-    (main-gui-loop)))
-
-
-
+    (main-gui-loop)
+    ))
