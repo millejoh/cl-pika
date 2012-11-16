@@ -87,8 +87,10 @@
 
 (defpackage :dormouse
   (:nicknames :dormouse :tcod-gui :tcod.gui)
-  (:use :cl :tcod ;;:util
+  (:use :cl :tcod
+        :alexandria
         :iterate)
+  (:shadow #:make-keyword)
   (:documentation
 "DORMOUSE is a windowing `graphical' user interface library, built on top of
 the [[http://doryen.eptalys.net/libtcod/][Doryen Library]] (libtcod).
@@ -166,17 +168,17 @@ The latest version of DORMOUSE can be found at:
 * Dependencies
 
 - The Doryen library, which can be found at http://doryen.eptalys.net/libtcod/]
-- CL-TCOD: http://bitbucket.org/eeeickythump/cl-tcod/
-- ITERATE: http://common-lisp.net/project/iterate/
-- ASDF
+- CL-TCOD: [[http://bitbucket.org/eeeickythump/cl-tcod/]]
+- ALEXANDRIA: [[http://common-lisp.net/project/alexandria/]]
+- ITERATE: [[http://common-lisp.net/project/iterate/]]
 
 * Installation
 
 - Install all dependencies (see above).
 - Download =DORMOUSE= from its
   [[http://bitbucket.org/eeeickythump/cl-dormouse/][repository.]]
-- Run your lisp and make sure you can load asdf, and asdf can load
-  =CL-TCOD= and =DORMOUSE=.
+- Run your lisp and make sure you can load asdf or quicklisp, and asdf or
+  quicklisp can load =CL-TCOD= and =DORMOUSE=.
 - The following is a minimal 'hello world' application:
 ;;; (in-package :cl-user)
 ;;; (defpackage :mypkg
@@ -1097,13 +1099,6 @@ be ignored (treated as zero)."
                                :exclude-start-char exclude-start-char
                                :exclude-end-char exclude-end-char))))
     (finally (return (list text)))))
-
-
-(defun all-hashtable-keys (hashtable)
-  "Return a list of every key in HASHTABLE."
-  (iterate
-    (for (key nil) in-hashtable hashtable)
-    (collect key)))
 
 
 (defmacro with-no-redraw (win &body body)
@@ -4063,7 +4058,7 @@ topic, 'marks up' any unmarked occurrence of the title of another topic
 in the same database. Finally, converts all marked hyperlinks to
 the internal format recognised by the GUI."
   (iterate
-    (with topics = (sort (remove-if-not #'stringp (all-hashtable-keys db))
+    (with topics = (sort (remove-if-not #'stringp (hash-table-keys db))
                          #'> :key #'length))
     (for (topic text) in-hashtable db)
     (unless (stringp text) (next-iteration))
@@ -5079,6 +5074,8 @@ is initially positioned with top left corner TLX,TLY on the map console."
                   (title "The Doryen Library")
                   (width nil)
                   (height nil)
+                  (renderer :RENDERER-GLSL)
+                  (fullscreen? nil)
                   (font-file *default-font-file*)
                   (fps 20)
                   ;;(font-file-chars-in-columns? t)
@@ -5118,30 +5115,30 @@ the GUI.
                              (if (listp *default-font-layout*)
                                  *default-font-layout*
                                  (list *default-font-layout*))
-;;;                        (if font-file-chars-in-columns?
-;;;                            '(:font-layout-ascii-in-col)
-;;;                            '(:font-layout-ascii-in-row))
                              0 0)) ;; TCOD automatically deduces WxH
-;;;                        font-file-columns font-file-rows
-;;;                        font-file-chars-in-columns?
-;;;                        (colour font-file-background-colour))
 
-  ;; Store screen resolution, then auto-calculate a sensible width and
-  ;; height based on screen size and character size (unless a particular
-  ;; width and height have been specified)
+  ;; We can't access screen resolution until the console has been initialised.
 
-  (unless (numberp *screen-resolution-x*)
-    (multiple-value-bind (scr-xdim scr-ydim) (sys-get-current-resolution)
-      (setf *screen-resolution-x* scr-xdim
-            *screen-resolution-y* scr-ydim)))
+  ;; Currently (2012-11-16), sys-get-current-resolution crashes if called
+  ;; before console-init-root. If called after console-init-root, it returns
+  ;; the dimensions of the root console, not the dimensions of the screen. So
+  ;; there is currently no way to access the *screen* resolution short of
+  ;; calling SDL functions. We therefore simply initialise the root to a
+  ;; conservative 80x25 unless we are supplied with alternative dimensions.
+  (console-init-root (or width 80) (or height 25) :title title
+                     :renderer renderer :fullscreen? fullscreen?)
 
-  (multiple-value-bind (ch-xdim ch-ydim) (sys-get-char-size)
-    (unless width
-      (setf width (floor (* 0.8 (/ *screen-resolution-x* ch-xdim)))))
-    (unless height
-      (setf height (floor (* 0.8 (/ *screen-resolution-y* ch-ydim))))))
+  ;; (unless (numberp *screen-resolution-x*)
+  ;;   (multiple-value-bind (scr-xdim scr-ydim) (sys-get-current-resolution)
+  ;;     (setf *screen-resolution-x* scr-xdim
+  ;;           *screen-resolution-y* scr-ydim)))
 
-  (console-init-root width height title nil :RENDERER-SDL)
+  ;; (multiple-value-bind (ch-xdim ch-ydim) (sys-get-char-size)
+  ;;   (unless width
+  ;;     (setf width (floor (* 0.8 (/ *screen-resolution-x* ch-xdim)))))
+  ;;   (unless height
+  ;;     (setf height (floor (* 0.8 (/ *screen-resolution-y* ch-ydim))))))
+
   (start-colours)
   (setf *window-stack* nil)
   (sys-set-fps fps)                     ; limit FPS (and CPU load)
@@ -5420,8 +5417,10 @@ The loop runs until the global variable [[*exit-gui?*]] is non-nil.
       ;; http://code.google.com/p/lispbuilder/wiki/PortableInteractiveDevelopment
       ;; and allows swank to process commands from slime during the game loop.
       #+swank (let ((connection
-                      (or swank::*emacs-connection* (swank::default-connection))))
-                (when (and connection (not (eql swank:*communication-style* :spawn)))
+                      (or swank::*emacs-connection*
+                          (swank::default-connection))))
+                (when (and connection
+                           (not (eql swank:*communication-style* :spawn)))
                   (swank::handle-requests connection t)))
       ;; Inner part of loop moved into separate function, to allow redefinition
       ;; while within the loop.
