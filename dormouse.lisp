@@ -202,6 +202,7 @@ The latest version of DORMOUSE can be found at:
   (:export #:start-gui
            #:main-gui-loop
            #:resume-gui
+           #:stop-gui
            #:*shift*
            #:*ctrl*
            #:*alt*
@@ -5077,6 +5078,7 @@ is initially positioned with top left corner TLX,TLY on the map console."
                   (renderer :RENDERER-GLSL)
                   (fullscreen? nil)
                   (font-file *default-font-file*)
+                  (antialiased? nil)
                   (fps 20)
                   ;;(font-file-chars-in-columns? t)
                   )
@@ -5112,9 +5114,12 @@ the GUI.
   (when font-file
     (assert (probe-file font-file))
     (console-set-custom-font font-file
-                             (if (listp *default-font-layout*)
-                                 *default-font-layout*
-                                 (list *default-font-layout*))
+                             (append (if (listp *default-font-layout*)
+                                         *default-font-layout*
+                                         (list *default-font-layout*))
+                                     (if antialiased?
+                                         (list :font-type-greyscale)
+                                         nil))
                              0 0)) ;; TCOD automatically deduces WxH
 
   ;; We can't access screen resolution until the console has been initialised.
@@ -5297,90 +5302,16 @@ a double-click event is created.")
              (t                         ; mouse "just hovering"
               (when *topwin*
                 (setf (gui-event-winx mouse-hover-event)
-                      (- *mouse-x* (window-tlx *topwin*)))
+                      (constrain (- *mouse-x* (window-tlx *topwin*))
+                                 0 (1- (window-width *topwin*))))
                 (setf (gui-event-winy mouse-hover-event)
-                      (- *mouse-y* (window-tly *topwin*)))
+                      (constrain (- *mouse-y* (window-tly *topwin*))
+                                 0 (1- (window-height *topwin*))))
                 (setf (gui-event-mouse-state mouse-hover-event) *rodent*)
                 (setf (gui-event-focus mouse-hover-event) nil)
                 ;;(format t "hover: ~S~%" mouse-hover-event)
                 (send-to-window *topwin* mouse-hover-event))))
       )))
-
-
-        ;; (t
-        ;;  (setf *rodent* (mouse-get-status t))
-        ;;  (unless (equal *rodent* *last-rodent*)
-        ;;    ;; Deal with mouse events
-        ;;    (setf *mouse-x* (mouse-cx *rodent*)
-        ;;          *mouse-y* (mouse-cy *rodent*)
-        ;;          *topwin* (window-with-mouse-focus))
-        ;;    (setf *focus-changed?* (not (eql *topwin* *last-topwin*)))
-        ;;    (cond
-        ;;      ((or (mouse-lbutton-pressed *rodent*)
-        ;;           (mouse-rbutton-pressed *rodent*)
-        ;;           (mouse-mbutton-pressed *rodent*))
-        ;;       ;; Mouse clicked
-        ;;       (send-mouse-click-event *rodent*))
-        ;;      ;; L button held down
-        ;;      ((mouse-lbutton *rodent*)
-        ;;       (when *topwin*
-        ;;         (raise-window *topwin*)
-        ;;         (let ((start (get-internal-real-time))
-        ;;               (dragged? nil))
-        ;;           (declare (ignorable dragged?))
-        ;;           (iterate
-        ;;             (while (mouse-lbutton (setf *rodent* (mouse-get-status t))))
-        ;;             (unless (and (< (get-internal-real-time)
-        ;;                             (+ start (/ (* *drag-delay* 1000)
-        ;;                                         internal-time-units-per-second)))
-        ;;                          (zerop (mouse-dx *rodent*))
-        ;;                          (zerop (mouse-dy *rodent*)))
-        ;;               (setf dragged? t)
-        ;;               (cond
-        ;;                 ((and (window-can-drag? *topwin*)
-        ;;                       (on-upper-window-border?
-        ;;                        *topwin*
-        ;;                        (- *mouse-x* (window-tlx *topwin*))
-        ;;                        (- *mouse-y* (window-tly *topwin*))))
-        ;;                  ;; Dragging on title bar - move the window
-        ;;                  (mouse-drag-window *topwin* *rodent*))
-        ;;                 ((and (window-can-resize? *topwin*)
-        ;;                       (= *mouse-y* (+ (window-tly *topwin*)
-        ;;                                       (1- (window-height *topwin*))))
-        ;;                       (= *mouse-x* (+ (window-tlx *topwin*)
-        ;;                                       (1- (window-width *topwin*)))))
-        ;;                  ;; Dragging on bottom right corner
-        ;;                  (mouse-resize-window *topwin* *rodent*))
-        ;;                 (t
-        ;;                  (send-to-window
-        ;;                   *topwin*
-        ;;                   (make-instance '<GUI-Mouse-Drag-Event>
-        ;;                                  :winx (- *mouse-x* (window-tlx *topwin*))
-        ;;                                  :winy (- *mouse-y* (window-tly *topwin*))
-        ;;                                  :mouse-state *rodent*))))
-        ;;               (return))))))
-        ;;
-        ;;      (t                         ; mouse "just hovering"
-        ;;       (when *topwin*
-        ;;         (setf (gui-event-winx mouse-hover-event)
-        ;;               (- *mouse-x* (window-tlx *topwin*)))
-        ;;         (setf (gui-event-winy mouse-hover-event)
-        ;;               (- *mouse-y* (window-tly *topwin*)))
-        ;;         (setf (gui-event-mouse-state mouse-hover-event) *rodent*)
-        ;;         (setf (gui-event-focus mouse-hover-event) nil)
-        ;;         (send-to-window *topwin* mouse-hover-event))))
-        ;;    ;; CONSOLE-FLUSH should not be done every iteration, which
-        ;;    ;; is what was happening below.
-        ;;    ;; This has been changed so now we only flush the console if the
-        ;;    ;; mouse moves/mouse status changes, or a key is pressed.
-        ;;    ;; It seems to work.
-        ;;    ;;
-        ;;    ;; Alternative plan could be to time since last flush, limit to
-        ;;    ;; < 20 fps.
-        ;;    (unless (equal *rodent* *last-rodent*)
-        ;;      (setf *last-rodent* *rodent*)
-        ;;      (console-flush))
-        ;;    ))))))
 
 
 
@@ -5436,6 +5367,11 @@ The loop runs until the global variable [[*exit-gui?*]] is non-nil.
 * Description: Resume running the currently defined window system."
   (console-flush)
   (main-gui-loop))
+
+
+;; TODO this should really use a signal.
+(defun stop-gui ()
+  (setf *exit-gui?* t))
 
 
 (defun window-to-text (win)

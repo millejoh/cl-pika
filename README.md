@@ -11,7 +11,7 @@ the [Doryen Library (libtcod)][libtcod].
 The [Doryen Library][libtcod], or `libtcod`, is a library that implements a
 truecolour console. It can be thought of as a souped-up alternative to
 [Curses][]. The console can be of any size that fits on the screen. Both
-keyboard and mouse events are handled. There is support for artibrarily large
+keyboard and mouse events are handled. There is support for arbitrarily large
 character sets, and font antialiasing. BMP and PNG images can be displayed
 alongside text.
 

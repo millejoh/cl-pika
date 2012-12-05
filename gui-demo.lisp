@@ -56,7 +56,7 @@ COLOURNAME is a keyword that will be associated with the new colour.
 R, G and B are byte values (0-255) that define the new colour.")
 
 (defvar *maze-file* "maze.txt")
-(defparameter *font-file* "MDA9x14.png")
+(defparameter *font-file* "freemono.png")
 
 (defvar *ht-database* nil)
 (defvar *hypertext-fg-colour* :light-blue)
@@ -291,8 +291,8 @@ R, G and B are byte values (0-255) that define the new colour.")
                          :hyperlink-fg :light-blue))
     ;;(cffi::use-foreign-library tcod::libtcod)
     (setf *player* (make-instance '<Player>))
-    (start-gui :title "Dormouse demo" :width 100 :height 50
-               :font-file *font-file*)
+    (start-gui :title "Dormouse demo" :width 90 :height 35
+               :font-file *font-file* :antialiased? t)
     (dolist (col *custom-colours*)
       (destructuring-bind (name r g b) col
 	(tcod:make-colour name r g b)))
@@ -309,7 +309,7 @@ R, G and B are byte values (0-255) that define the new colour.")
                                                :height 12))
     (share-map *smallvp* *viewport* 15 13)
     (setf *tipwin* (make-instance '<MyTooltip-Window>
-                                  :tlx 6 :tly 25 :width 30 :height 11
+                                  :tlx 6 :tly 25 :width 30 :height 8
                                   :title "Tooltips"
                                   :transparency +OPAQUE+))
     ;; Make windows
@@ -333,7 +333,7 @@ R, G and B are byte values (0-255) that define the new colour.")
                                (add-message-and-redraw *msgwin*
                                                        "You clicked button `~A'."
                                                        (gui-event-string event))))))
-    (make-instance '<Window> :tlx 50 :tly 30 :width 20 :height 12
+    (make-instance '<Window> :tlx 50 :tly 20 :width 20 :height 12
                              :title "win2" :foreground :yellow
                              :background :dark-blue)
     (setf *termwin*
@@ -349,7 +349,7 @@ R, G and B are byte values (0-255) that define the new colour.")
                          "Your path is blocked by a wall! Click 'X' to close."))
     (setf *listwin*
 	  (make-instance '<Filtered-Window>
-                         :tlx 21 :tly 38 :width 20 :height 9
+                         :tlx 21 :tly 18 :width 20 :height 9
                          :title "list" :transparency +OPAQUE+))
     (add-item *listwin* "a" "a. '{fg:green}apples{/}'" (make-simple-key #\a))
     (add-item *listwin* "b" "b. '{fg:red}plums{/}'" (make-simple-key #\b))
@@ -357,7 +357,7 @@ R, G and B are byte values (0-255) that define the new colour.")
     (add-item *listwin* "d" "d. '{fg:brown}potatoes{/}'" (make-simple-key #\d))
     (add-item *listwin* "e" "e. '{fg:pink}yams{/}'" (make-simple-key #\e))
     (setf *msgwin*
-	  (make-instance '<Log-Window> :tlx 65 :tly 13 :width 33 :height 35
+	  (make-instance '<Log-Window> :tlx 55 :tly 5 :width 33 :height 28
                                        :title "Messages" :foreground :light-blue
                                        :background :dark-blue :transparency +OPAQUE+
                                        :transparency-unfocussed 50))
@@ -377,14 +377,14 @@ R, G and B are byte values (0-255) that define the new colour.")
                              (add-message-and-redraw *msgwin* "You chose `~A'."
                                                      (gui-event-focus event))))))
     (setf *statwin*
-          (make-instance '<Statistics-Window> :tlx 3 :tly 43 :width 12 :height 4
+          (make-instance '<Statistics-Window> :tlx 3 :tly 28 :width 12 :height 4
                                               :background :dark-grey))
 
     (initialise-hypertext-database)
 
     (setf *htwin*
           (make-instance '<Hypertext-Window>
-                         :tlx 12 :tly 30 :width 30
+                         :tlx 12 :tly 25 :width 30
                          :height 12 :title "Hypertext" :foreground :white
                          :background :dark-blue
                          :hyperlink-fg *hypertext-fg-colour*
