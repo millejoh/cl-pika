@@ -38,19 +38,19 @@
 (defvar *termwin* nil)
 (defvar *htwin* nil)
 (defvar *custom-colours*
-  `((:green 		68 158 53)
-    (:red 		151 26 26)
-    (:magenta		255 110 87)
-    (:light-grey	185 192 162)
-    (:grey		185 192 162)
-    (:dark-grey		88 83 86)
-    (:light-blue	145 202 255)
-    (:light-green	131 212 82)
-    (:light-cyan	176 223 215)
-    (:light-red		255 34 34)
-    (:light-magenta	255 167 246)
-    (:yellow		255 218 90)
-    (:brown	 	120 94 47))
+  `((:green             68 158 53)
+    (:red               151 26 26)
+    (:magenta           255 110 87)
+    (:light-grey        185 192 162)
+    (:grey              185 192 162)
+    (:dark-grey                 88 83 86)
+    (:light-blue        145 202 255)
+    (:light-green       131 212 82)
+    (:light-cyan        176 223 215)
+    (:light-red                 255 34 34)
+    (:light-magenta     255 167 246)
+    (:yellow            255 218 90)
+    (:brown             120 94 47))
   "* Description: List of lists. Each sublist has the form (COLOURNAME R G B).
 COLOURNAME is a keyword that will be associated with the new colour.
 R, G and B are byte values (0-255) that define the new colour.")
@@ -119,12 +119,12 @@ R, G and B are byte values (0-255) that define the new colour.")
              (collecting line)))))
     (loop for x from 0 below (map-xdim win)
        do (loop for y from 0 below (map-ydim win) do
-	       (let ((it (char (nth (mod (1+ y) maze-ydim) maze)
+               (let ((it (char (nth (mod (1+ y) maze-ydim) maze)
                                (mod (1+ x) maze-xdim))))
-		 (cond
-		   ((equal #\# it)
-		    (map-draw-char-at win #\# x y :fg :light-blue
-				      :redraw nil))))))
+                 (cond
+                   ((equal #\# it)
+                    (map-draw-char-at win #\# x y :fg :light-blue
+                                      :redraw nil))))))
     (map-draw-char-at win (cursor-char win)
                       (cursorx win) (cursory win)
                       :fg :yellow)))
@@ -217,7 +217,7 @@ R, G and B are byte values (0-255) that define the new colour.")
      (call-next-method))
     (t
      (list "Here is the tip:"
-	   (format nil "{fg:red}~S{/}" datum)
+           (format nil "{fg:red}~S{/}" datum)
            "Don't swim in shark-infested waters."))))
 
 
@@ -238,18 +238,18 @@ R, G and B are byte values (0-255) that define the new colour.")
 
 (defmethod prepare-window :after ((win <Statistics-Window>))
   (draw-string-at win (bar-chart (- (window-width win) 2)
-				 (hit-points *player*) (max-hit-points *player*)
+                                 (hit-points *player*) (max-hit-points *player*)
                                  :text :percent
-				 :bar-colour :light-red
-				 :empty-bar-colour :dark-red)
-		  1 1 )
+                                 :bar-colour :light-red
+                                 :empty-bar-colour :dark-red)
+                  1 1 )
   (draw-string-at win (bar-chart (- (window-width win) 2)
-				 (stamina *player*)
-				 (max-stamina *player*)
+                                 (stamina *player*)
+                                 (max-stamina *player*)
                                  :text :fraction
-				 :bar-colour :light-blue
-				 :empty-bar-colour :dark-blue)
-		  1 2 ))
+                                 :bar-colour :light-blue
+                                 :empty-bar-colour :dark-blue)
+                  1 2 ))
 
 
 
@@ -281,7 +281,7 @@ R, G and B are byte values (0-255) that define the new colour.")
 
 (defun gui-demo ()
   (let ((width 0)
-	(height 0))
+        (height 0))
     (setf *window-theme*
           (make-instance '<Window-Theme>
                          :foreground :white
@@ -295,16 +295,16 @@ R, G and B are byte values (0-255) that define the new colour.")
                :font-file *font-file* :antialiased? t)
     (dolist (col *custom-colours*)
       (destructuring-bind (name r g b) col
-	(tcod:make-colour name r g b)))
+        (tcod:make-colour name r g b)))
 
     (setf width (tcod:console-get-width tcod:*root*))
     (setf height (tcod:console-get-height tcod:*root*))
     ;; Make viewport. Make it slightly shorter than HEIGHT to
     ;; allow messages on the bottom line of the root console.
     (setf *viewport* (make-instance '<MyViewport>
-				    :foreground :light-blue
-				    :background :black
-				    :width width :height (1- height)))
+                                    :foreground :light-blue
+                                    :background :black
+                                    :width width :height (1- height)))
     (setf *smallvp* (make-instance '<Viewport> :tlx 58 :tly 1 :width 12
                                                :height 12))
     (share-map *smallvp* *viewport* 15 13)
@@ -314,9 +314,9 @@ R, G and B are byte values (0-255) that define the new colour.")
                                   :transparency +OPAQUE+))
     ;; Make windows
     (setf *dlgwin*
-	  (make-instance '<Dialog-Window>
+          (make-instance '<Dialog-Window>
                          :tlx 8 :tly 3 :width 25 :height 8
-			 :title "Dialog" :foreground :grey :background :red
+                         :title "Dialog" :foreground :grey :background :red
                          :transparency +OPAQUE+
                          :draw
                          (lambda (win)
@@ -342,13 +342,13 @@ R, G and B are byte values (0-255) that define the new colour.")
                          :title "Terminal" :foreground :white :background
                          :dark-slate-gray :prompt "==>"))
     (setf *alertwin*
-	  (make-instance '<Alert-Window>
+          (make-instance '<Alert-Window>
                          :tlx 6 :tly 15 :width 20 :height 8
                          :title "Alert!" :foreground :yellow :background :red
                          :hidden? t :transparency +OPAQUE+ :text
                          "Your path is blocked by a wall! Click 'X' to close."))
     (setf *listwin*
-	  (make-instance '<Filtered-Window>
+          (make-instance '<Filtered-Window>
                          :tlx 21 :tly 18 :width 20 :height 9
                          :title "list" :transparency +OPAQUE+))
     (add-item *listwin* "a" "a. '{fg:green}apples{/}'" (make-simple-key #\a))
@@ -357,12 +357,12 @@ R, G and B are byte values (0-255) that define the new colour.")
     (add-item *listwin* "d" "d. '{fg:brown}potatoes{/}'" (make-simple-key #\d))
     (add-item *listwin* "e" "e. '{fg:pink}yams{/}'" (make-simple-key #\e))
     (setf *msgwin*
-	  (make-instance '<Log-Window> :tlx 55 :tly 5 :width 33 :height 28
+          (make-instance '<Log-Window> :tlx 55 :tly 5 :width 33 :height 28
                                        :title "Messages" :foreground :light-blue
                                        :background :dark-blue :transparency +OPAQUE+
                                        :transparency-unfocussed 50))
     (setf *menuwin*
-	  (make-instance '<Menu-Window>
+          (make-instance '<Menu-Window>
                          :tlx 40 :tly 10 :width 15 :height 7
                          :title "list"
                          :items
