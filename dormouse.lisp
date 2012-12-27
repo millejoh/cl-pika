@@ -89,7 +89,8 @@
   (:nicknames :dormouse :tcod-gui :tcod.gui)
   (:use :cl :tcod
         :alexandria
-        :iterate)
+        :iterate
+        :defstar)
   (:shadow #:make-keyword)
   (:documentation
 "DORMOUSE is a windowing `graphical' user interface library, built on top of
@@ -230,8 +231,9 @@ The latest version of DORMOUSE can be found at:
            #:restore-interface-state
            #:destroy-interface-state
            #:hide-window
-           #:hide-all-windows
+           #:unhide-window
            #:raise-window
+           #:hide-all-windows
            #:dirty-window
            #:move-window
            #:resize-window
@@ -266,10 +268,12 @@ The latest version of DORMOUSE can be found at:
            #:*window-theme*
            #:<Window>
            #:<Modal-Window>
+           #:modal?
            #:<Ghost-Window>
            #:<Background-Window>
            #:<Meter-Window>
            #:<List-Window>
+           #:window-page-length
            #:<Menu-Window>
            #:<Alert-Window>
            #:<Yes/No-Window>
@@ -285,6 +289,7 @@ The latest version of DORMOUSE can be found at:
            #:command-from-context-menu
            #:ok-to-show-tooltip?
            #:tooltip-text
+           #:floating-window
            #:floating-window-foreground
            #:floating-window-background
            #:calculate-floating-window-width
@@ -306,6 +311,7 @@ The latest version of DORMOUSE can be found at:
            #:window-items-lines
            #:clear-items  ;;
            #:list-item
+           #:list-item-str
            #:list-item-item
            #:list-item-hotkey
            #:list-item-p
@@ -316,6 +322,9 @@ The latest version of DORMOUSE can be found at:
            #:window-can-drag?
            #:window-can-resize?
            #:window-item-at-cursor
+           #:window-value-at-cursor
+           #:window-item->string
+           #:window-item-hotkey-pressed
            ;; Log window
            #:<Log-Window>
            #:clear-messages   ;;
@@ -331,12 +340,14 @@ The latest version of DORMOUSE can be found at:
            #:make-autolinks-in-hypertext-database
            #:hyperlink-foreground-colour
            #:open-hypertext-topic   ;;
-           ;; Terminal window
+           ;; [[Terminal window]] ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            #:<Terminal-Window>
+           #:window-prompt
            #:window-input-function
            #:window-echo-input?
            #:window-input-active?
            #:window-input-history
+           #:send-string-to-terminal
            #:<Simple-Prompt-Window>
            ;; Viewports
            #:<Viewport>
@@ -353,6 +364,8 @@ The latest version of DORMOUSE can be found at:
            #:centre-viewport-on   ;;
            #:window-foreground
            #:window-background
+           #:window-highlight-foreground
+           #:window-highlight-background
            #:window-width
            #:window-height
            #:window-tlx
@@ -551,12 +564,13 @@ when the user uses the mouse to move a window across the screen."))
 * Returns: None.
 * Description: Internal function, called by {defun dormouse:main-gui-loop}
 when the user uses the mouse to resize a window."))
-(defgeneric raise-window (win &key redraw simple-redraw? &allow-other-keys)
+(defgeneric raise-window (win &key &allow-other-keys)
   (:documentation
    "* Arguments:
 - WIN: an instance of {defclass dormouse:<Window>}
-- REDRAW: boolean value indicating whether the area of the screen occupied
-by the window should be redrawn.
+- Keyword arguments:
+  - REDRAW: boolean value indicating whether the area of the screen occupied
+    by the window should be redrawn.
 * Returns: None.
 * Description: Put the window WIN at the top of the window stack, so that
 it is displayed as overlying any other overlapping windows.
@@ -611,9 +625,6 @@ the window stack.
 (defgeneric window-draw-char-at (win ch winx winy
                                 &key background-flag fg bg redraw
                                 &allow-other-keys)
-  (:documentation "TODO document."))
-(defgeneric console-draw-char-at (con ch winx winy
-                             &key background-flag fg bg &allow-other-keys)
   (:documentation "TODO document."))
 (defgeneric draw-string-at (win str x y
                            &key fg bg redraw align &allow-other-keys)
@@ -672,6 +683,7 @@ positioned over this item."))
   (:documentation   "Return the list-item that is at the current cursor
 position in this window (the 'cursor' moves up and down the list and always
 points to one of the items in the list)."))
+(defgeneric window-value-at-cursor (win))
 (defgeneric move-cursor-to-end (win)
   (:documentation "TODO document."))
 (defgeneric wrap-items (win)
@@ -1304,7 +1316,9 @@ key structure, K, in human-readable form."
   (check-type k key)
   (concatenate 'string
                (format nil "~A~A~A"
-                       (if (key-shift k) "shift-" "")
+                       (if (and (key-shift k)
+                                (not (character->shift (key-c k))))
+                           "shift-" "")
                        (if (or (key-rctrl k) (key-lctrl k)) "ctrl-" "")
                        (if (or (key-ralt k) (key-lalt k)) "alt-" ""))
                (case (key-vk k)
@@ -1435,10 +1449,10 @@ Examples: 'a', 'A', 'f1', 'Esc', 'Ctrl PgDn', 'ctrl alt M', 'C-x',
                    :shift (cond
                             ((or (find "s" modifiers :test #'string=)
                                  (find "shift" modifiers :test #'string=))
-                             (if ch
-                                 (tcod-gui:character->shift ch)
-                                 t))
-                            (t nil)))))
+                             t)
+                            (ch
+                             (character->shift ch))
+                             (t nil)))))
 
 
 (let ((key-event nil))
@@ -2849,9 +2863,11 @@ Return the Y-coordinate of the bottom right corner of the window.
 
 
 
-(defmethod console-draw-char-at (con (ch integer) winx winy
-                             &key (background-flag :set)
-                                (fg nil) (bg nil))
+(defun* (console-draw-char-at -> (values)) ((con tcod:console)
+                                            (ch fixnum)
+                                            (winx fixnum) (winy fixnum)
+                                            &key (background-flag :set)
+                                                 (fg nil) (bg nil))
   (cond
     ((and fg bg)
      ;; New in libtcod 1.4.3
@@ -2866,7 +2882,7 @@ Return the Y-coordinate of the bottom right corner of the window.
     (t
      (console-put-char con winx winy ch background-flag)))
   ;; todo restore old values after printing
-  )
+  (values))
 
 
 (defmethod window-draw-char-at ((win <Window>) (ch character) winx winy
@@ -3108,6 +3124,15 @@ to be redrawn."
 ;;; <<Modal Window>> ==========================================================
 
 
+(defgeneric modal? (win)
+  (:documentation
+   "* Arguments:
+- WIN: an instance of [[<Window>]]
+* Returns: Boolean.
+* Description: Returns T if WIN is modal.")
+  (:method ((win <Window>)) nil))
+
+
 (defclass <Modal-Window> (<Window>)
   ((window-summon-mouse-on-raise? :initform nil
                                   :accessor window-summon-mouse-on-raise?
@@ -3120,12 +3145,9 @@ the topmost window. The user must cause the modal window to close before events
 can be sent to any other windows."
   ))
 
-(defun modal? (win)
-  "* Arguments:
-- WIN: an instance of [[<Window>]]
-* Returns: Boolean.
-* Description: Returns T if WIN inherits from [[<Modal-Window>]]."
-    (typep win '<Modal-Window>))
+
+(defmethod modal? ((win <Modal-Window>))
+  t)
 
 
 (defmethod raise-window :after ((win <Modal-Window>) &key)
@@ -3305,7 +3327,8 @@ WINDOW-AUTO-REDRAW-TIME to an appropriate value in milliseconds."))
                                                     (window-meters win))))))
     (iterate
       (for (text meter-type meter-fn) in (window-meters win))
-      (assert (eql :bar-chart meter-type))
+      (unless (eql :bar-chart meter-type)
+        (error "Meter type ~S not implemented" meter-type))
       (for row from 1)
       (for val = (funcall meter-fn))
       (if (>= row (window-height win)) (finish))
@@ -3332,6 +3355,7 @@ WINDOW-AUTO-REDRAW-TIME to an appropriate value in milliseconds."))
                   :initarg :offset :type integer)
    (window-cursor :accessor window-cursor :initform 0 :type integer)
    (window-use-borders? :initform nil :accessor window-use-borders?
+                        :initarg :use-borders?
                         :type boolean))
   (:documentation
    "Window that displays a list of strings which can be scrolled.
@@ -3401,6 +3425,13 @@ The enter key selects the item under the cursor."))
   (nth (window-cursor win) (window-items win)))
 
 
+(defmethod window-value-at-cursor ((win <List-Window>))
+  (if (window-item-at-cursor win)
+      (values (list-item-item (window-item-at-cursor win)) t)
+      ;; else
+      (values nil nil)))
+
+
 (defmethod window-page-length ((win <List-Window>))
   (if (window-use-borders? win)
       (window-height win)
@@ -3429,6 +3460,10 @@ The enter key selects the item under the cursor."))
                         (= i (window-cursor win))))))
 
 
+(defgeneric window-item->string (win item))
+(defmethod window-item->string ((win <List-Window>) (item list-item))
+  (format nil "~A" (list-item-str item)))
+
 
 (defmethod draw-item-at ((win <List-Window>) (item list-item) winx winy cursor?)
   (let ((pagewidth (- (window-width win) (if (window-use-borders? win) 0 2))))
@@ -3436,13 +3471,11 @@ The enter key selects the item under the cursor."))
                     (format nil "~vA"
                             pagewidth
                             (left-trim-coloured-string
-                             (format nil "~A" (list-item-str item))
+                             (window-item->string win item)
                              pagewidth))
                     winx winy
                     :bg (if cursor?
-                            (invert-colour
-                             (console-get-char-background
-                              (window-console win) 0 0))
+                            (window-highlight-background win)
                             nil))))
 
 
@@ -3498,6 +3531,10 @@ The enter key selects the item under the cursor."))
 (defmethod move-cursor-by ((win <List-Window>) (increment integer))
   (move-cursor-to win (+ (window-cursor win) increment)))
 
+
+(defgeneric window-item-hotkey-pressed (win item))
+(defmethod window-item-hotkey-pressed ((win <list-window>) (item list-item))
+  (move-cursor-to win (position item (window-items win))))
 
 
 (defmethod send-to-window :around ((win <List-Window>) (event <Mouse-Hover-Event>))
@@ -3557,7 +3594,7 @@ The enter key selects the item under the cursor."))
                             (window-items win))))
              (cond
                (matching
-                   (move-cursor-to win (position matching (window-items win))))
+                (window-item-hotkey-pressed win matching))
                (t
                 (return-from send-to-window (call-next-method)))))))
         ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
@@ -3624,7 +3661,7 @@ Pressing DELETE will erase all characters in FILTER-STRING."))
 (defmethod item-matches-filter-string? ((win <Filtered-Window>) item)
   (or (null (filter-string win))
       (search (string-upcase (filter-string win))
-              (string-upcase (list-item-str item)))))
+              (string-upcase (window-item->string win item)))))
 
 
 
@@ -4357,7 +4394,7 @@ prompt. Called when a line of input is entered in the window.")))
 (defmethod window-page-length ((win <Terminal-Window>))
   (if (window-input-active? win)
       (- (window-height win)
-         (max 1 (length (slot-value win 'window-input-rendered))))
+         (max 0 (1- (length (slot-value win 'window-input-rendered)))))
       (call-next-method)))
 
 
@@ -4372,15 +4409,18 @@ prompt. Called when a line of input is entered in the window.")))
         (draw-string-at win (colourise (window-prompt win)
                                        (window-prompt-foreground win)
                                        (window-prompt-background win))
-                        1 -2))
+                        (if (window-use-borders? win) 0 1)
+                        (if (window-use-borders? win) -1 -2)))
       (when line
         (draw-string-at win (colourise line (window-input-foreground win)
                                        (window-input-background win))
-                        (if (zerop i) (+ (length (window-prompt win)) 1) 1)
-                        (- i 2))))))
+                        (+ (if (window-use-borders? win) 0 1)
+                           (if (zerop i) (length (window-prompt win)) 0))
+                        (- i (if (window-use-borders? win) 1 2)))))))
 
 
 (defmethod (setf window-input-string) :after (value (win <Terminal-Window>))
+  (declare (ignore value))
   (render-input-string win))
 
 
@@ -4456,7 +4496,7 @@ prompt. Called when a line of input is entered in the window.")))
     (cond
       ((window-input-active? win)
        (when (key-pressed k)
-         (let ((pagelen (- (window-height win) 2))
+         (let ((pagelen (window-page-length win))
                (num-items (length (window-items win))))
            (cond
              ((graphic-char-p (key-c k))
@@ -4880,11 +4920,11 @@ position of the mouse pointer. "
 
 (defmethod tooltip-text :around ((win <Window>) datum winx winy)
   (declare (ignore datum winx winy))
-  (let ((result (call-next-method)))
-    (if (stringp result)
-        (list result)
+  (let ((res (call-next-method)))
+    (if (stringp res)
+        (list res)
         ;; else
-        result)))
+        res)))
 
 
 
@@ -5472,7 +5512,8 @@ a double-click event is created.")
       ;; Is a button being held down?
       (cond
         ((and (mouse-lbutton *rodent*)
-              *topwin*)
+              *topwin*
+              (not (window-hidden? *topwin*)))
          (raise-window *topwin*)
          (let ((start (get-internal-real-time))
                (dragged? nil))

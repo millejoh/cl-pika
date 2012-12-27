@@ -9,7 +9,8 @@
     :depends-on ("tcod"
                  "iterate"
                  "alexandria"
-                 "cl-ppcre"))
+                 "cl-ppcre"
+                 "defstar"))
 
 
 ;;;; dormouse.asd ends here ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
