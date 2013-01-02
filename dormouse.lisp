@@ -274,6 +274,7 @@ The latest version of DORMOUSE can be found at:
            #:<Meter-Window>
            #:<List-Window>
            #:window-page-length
+           #:window-select-function
            #:<Menu-Window>
            #:<Alert-Window>
            #:<Yes/No-Window>
@@ -668,7 +669,7 @@ the displayed list. Most items take up only 1 line."))
 (defgeneric window-items-lines (win)
   (:documentation   "Returns the total number of lines needed to display all
 the items in the window's list."))
-(defgeneric add-item (win item str &optional k)
+(defgeneric add-item (win item str &key hotkey prepend?)
   (:documentation   "Add an item to the end of the window's list.  ITEM is the
 'value' of the item itself. It can be any lisp value.  STR is a string
 representing ITEM, which is what is displayed in the window.  HOTKEY is an
@@ -962,39 +963,6 @@ Destructively appends =ITEM= to the end of the list stored in =LIST-PLACE=.
 In other words, like =PUSH=, but adds to the end of the list rather than
 the start."
     `(setf ,list-place (append ,list-place (list ,item))))
-
-
-
-(defun constrain (n lower-limit upper-limit)
-  "* Arguments:
-- N: a number.
-- LOWER-LIMIT: a number which is the lowest value that the function will return.
-- UPPER-LIMIT: a number which is the highest value that the function will return.
-
-* Description: Given a number N, Return N if the number is between LOWER-LIMIT
-and UPPER-LIMIT inclusive, otherwise return whichever of LOWER-LIMIT or
-UPPER-LIMIT is nearest to N.
-* See Also: {defmacro dormouse:constrain!}"
-  (cond
-    ((< n lower-limit)
-     lower-limit)
-    ((> n upper-limit)
-     upper-limit)
-    (t n)))
-
-
-
-(defmacro constrain! (place lower-limit upper-limit)
-  "* Arguments:
-- PLACE: a setf-able place that contains a number.
-- LOWER-LIMIT: a number which is the lowest value that the function will return.
-- UPPER-LIMIT: a number which is the highest value that the function will return.
-
-* Description: Destructively modifies PLACE, replacing its value with
-the value returned by (CONSTRAIN PLACE LOWER-LIMIT UPPER-LIMIT).
-* See Also: {defun dormouse:constrain}"
-  `(setf ,place (constrain ,place ,lower-limit ,upper-limit)))
-
 
 
 (defun keyword->string (kwd)
@@ -1413,15 +1381,32 @@ Recognised modifiers:
 Examples: 'a', 'A', 'f1', 'Esc', 'Ctrl PgDn', 'ctrl alt M', 'C-x',
 'C-S-A-F12', 'shift-kp0'"
   (let* ((parts (cl-ppcre:split "[- ]" str))
-         (modifiers (mapcar #'string-downcase (butlast parts)))
          (base (last-elt parts))
+         (modifiers (mapcar #'string-downcase (butlast parts)))
          (ch (cond
                ((= 1 (length base)) (aref base 0))
                ((string= base "minus") #\-)
                ((or (string= base "space")
                     (string= base "spc"))
                 #\space)
-               (t nil))))
+               (t nil)))
+         (ctrl? (if (or (find "c" modifiers :test #'string=)
+                                  (find "ctrl" modifiers :test #'string=)
+                                  (find "ctl" modifiers :test #'string=)
+                                  (find "control" modifiers :test #'string=))
+                    t nil))
+         (alt? (if (or (find "a" modifiers :test #'string=)
+                                 (find "alt" modifiers :test #'string=)
+                                 (find "m" modifiers :test #'string=)
+                                 (find "meta" modifiers :test #'string=))
+                   t nil))
+         (shift? (cond
+                            ((or (find "s" modifiers :test #'string=)
+                                 (find "shift" modifiers :test #'string=))
+                             t)
+                            (ch
+                             (character->shift ch))
+                             (t nil))))
     (tcod:make-key :c (or ch #\nul)
                    :vk (cond
                          (ch
@@ -1436,23 +1421,11 @@ Examples: 'a', 'A', 'f1', 'Esc', 'Ctrl PgDn', 'ctrl alt M', 'C-x',
                              (error "In key string ~S, unknown base key ~S"
                                     str base)))))
                    :pressed t
-                   :lalt (if (or (find "a" modifiers :test #'string=)
-                                 (find "alt" modifiers :test #'string=)
-                                 (find "m" modifiers :test #'string=)
-                                 (find "meta" modifiers :test #'string=))
-                             t nil)
-                   :lctrl (if (or (find "c" modifiers :test #'string=)
-                                  (find "ctrl" modifiers :test #'string=)
-                                  (find "ctl" modifiers :test #'string=)
-                                  (find "control" modifiers :test #'string=))
-                              t nil)
-                   :shift (cond
-                            ((or (find "s" modifiers :test #'string=)
-                                 (find "shift" modifiers :test #'string=))
-                             t)
-                            (ch
-                             (character->shift ch))
-                             (t nil)))))
+                   :lalt alt?
+                   :ralt alt?
+                   :lctrl ctrl?
+                   :rctrl ctrl?
+                   :shift shift?)))
 
 
 (let ((key-event nil))
@@ -1901,7 +1874,7 @@ with a foreground colour of TEXT-COLOUR. Possible values for TEXT are:
             (centre-string text width))
            (t   ;; just a bar
             (spaces width))))
-        (filled-spaces (round (* width (/ (constrain num 0 denom) denom)))))
+        (filled-spaces (round (* width (/ (clamp num 0 denom) denom)))))
     (concatenate 'string
                  "{fg:" (keyword->string text-colour)
                  ",bg:" (keyword->string bar-colour) "}"
@@ -1993,6 +1966,9 @@ the screen with the mouse?")
                       :initarg :can-close?
                       :documentation "Can the window be closed by clicking on
 an 'X' in its top right corner?")
+   (window-close-on-escape? :accessor window-close-on-escape?
+                            :initform nil :type boolean
+                            :initarg :close-on-escape?)
    (window-ephemeral? :accessor window-ephemeral? :initform nil
                       :type boolean :initarg :ephemeral?
                       :documentation "Ephemeral windows are destroyed
@@ -2276,10 +2252,10 @@ will use unless overridden."))
 (defmethod dirty-window ((win <Window>))
   (with-slots ((tlx window-tlx) (tly window-tly)
                (width window-width) (height window-height)) win
-    (console-set-dirty (constrain tlx 0 (1- (screen-width)))
-                       (constrain tly 0 (1- (screen-height)))
-                       (constrain width 0 (- (screen-width) tlx))
-                       (constrain height 0 (- (screen-height) tly)))))
+    (console-set-dirty (clamp tlx 0 (1- (screen-width)))
+                       (clamp tly 0 (1- (screen-height)))
+                       (clamp width 0 (- (screen-width) tlx))
+                       (clamp height 0 (- (screen-height) tly)))))
 
 
 
@@ -2689,10 +2665,10 @@ Return the Y-coordinate of the bottom right corner of the window.
     (iterate
       (while (mouse-lbutton (setf rodent (mouse-get-status t))))
       ;; Update position of WIN based on mouse position
-      (setf tlx (constrain (- (mouse-cx rodent) offsetx)
-                           0 (- root-width width 1)))
-      (setf tly (constrain (- (mouse-cy rodent) offsety)
-                           0 (- root-height height 1)))
+      (setf tlx (clamp (- (mouse-cx rodent) offsetx)
+                       0 (- root-width width 1)))
+      (setf tly (clamp (- (mouse-cy rodent) offsety)
+                       0 (- root-height height 1)))
       (unless (and (= tlx (window-tlx win)) (= tly (window-tly win)))
         ;; copy saved win to root  at WIN's old position (erasing WIN)
         (console-blit *temp-con* 0 0
@@ -2727,10 +2703,10 @@ Return the Y-coordinate of the bottom right corner of the window.
       (while (mouse-lbutton (setf rodent (mouse-get-status t))))
       ;; Update position of WIN based on mouse position.  Don't allow the mouse
       ;; to go above or to left of the top left corner of the window.
-      (setf brx (constrain (mouse-cx rodent) (window-tlx win)
-                           (1- (console-get-width *root*))))
-      (setf bry (constrain (mouse-cy rodent) (window-tly win)
-                           (1- (console-get-height *root*))))
+      (setf brx (clamp (mouse-cx rodent) (window-tlx win)
+                       (1- (console-get-width *root*))))
+      (setf bry (clamp (mouse-cy rodent) (window-tly win)
+                       (1- (console-get-height *root*))))
       (unless (and (= brx (window-brx win)) (= bry (window-bry win)))
         ;; copy saved win to root  at WIN's old position (erasing WIN)
         (console-blit *temp-con* 0 0
@@ -2818,13 +2794,22 @@ Return the Y-coordinate of the bottom right corner of the window.
   ;; gui loop" keys.
   (let ((k (gui-event-keypress event)))
     (when (key-pressed k)
-      (when (and (member (key-vk k) (list :escape :f1))
-                 (or (key-lctrl k)
-                     (key-rctrl k))
-                 (not (key-shift k))
-                 (not (key-lalt k))
-                 (not (key-ralt k)))
-        (setf *exit-gui?* t)))))
+      (cond
+        ((and (member (key-vk k) (list :escape :f1))
+              (or (key-lctrl k)
+                  (key-rctrl k))
+              (not (key-shift k))
+              (not (key-lalt k))
+              (not (key-ralt k)))
+         (setf *exit-gui?* t))
+        ((and (window-close-on-escape? win)
+              (eql (key-vk k) :escape)
+              (not (key-shift k))
+              (not (key-lalt k))
+              (not (key-ralt k))
+              (not (key-lctrl k))
+              (not (key-rctrl k)))
+         (hide-window win))))))
 
 
 
@@ -3356,7 +3341,13 @@ WINDOW-AUTO-REDRAW-TIME to an appropriate value in milliseconds."))
    (window-cursor :accessor window-cursor :initform 0 :type integer)
    (window-use-borders? :initform nil :accessor window-use-borders?
                         :initarg :use-borders?
-                        :type boolean))
+                        :type boolean)
+   (window-select-function :initform nil :accessor window-select-function
+                           :initarg :select-function
+                           :type (or null function)
+                           :documentation
+                           "If supplied, a function of two arguments,
+WIN and ITEM. It will be called when the window receives a GUI-Select-Event."))
   (:documentation
    "Window that displays a list of strings which can be scrolled.
 
@@ -3395,9 +3386,12 @@ The enter key selects the item under the cursor."))
 
 
 
-(defmethod add-item ((win <List-Window>) item str &optional hotkey)
-  (push-end (make-list-item :str str :item item :hotkey hotkey)
-            (window-items win)))
+(defmethod add-item ((win <List-Window>) item str
+                     &key hotkey (prepend? nil))
+  (let ((litem (make-list-item :str str :item item :hotkey hotkey)))
+    (if prepend?
+        (push litem (window-items win))
+        (push-end litem (window-items win)))))
 
 
 (defmethod clear-items ((win <List-Window>))
@@ -3444,7 +3438,8 @@ The enter key selects the item under the cursor."))
     ;; Configure window
     (if (>= pagelen (window-items-lines win))
         (setf (window-offset win) 0))
-    (constrain! (window-cursor win) 0 (window-items-lines win))
+    (setf (window-cursor win)
+          (clamp (window-cursor win) 0 (window-items-lines win)))
     (if (< (window-cursor win) (window-offset win))
         (setf (window-offset win) (window-cursor win)))
     (if (>= (window-cursor win) (+ (window-offset win) pagelen))
@@ -3555,6 +3550,15 @@ The enter key selects the item under the cursor."))
                            :winx winx :winy winy)))))
 
 
+(defmethod send-to-window ((win <List-Window>) (event <GUI-Select-Event>))
+  (with-slots ((focus gui-event-focus)
+               (winx gui-event-winx) (winy gui-event-winy)) event
+    (if (window-select-function win)
+        (funcall (window-select-function win) win focus)
+        (call-next-method))))
+
+
+
 (defmethod send-to-window :around ((win <List-Window>) (event <Key-Event>))
   (with-slots ((winx gui-event-winx) (winy gui-event-winy)
                (k gui-event-keypress)) event
@@ -3591,17 +3595,18 @@ The enter key selects the item under the cursor."))
            (let ((matching (find-if #'(lambda (item)
                                         (and (key-p (list-item-hotkey item))
                                              (same-keys? (list-item-hotkey item) k)))
-                            (window-items win))))
+                                    (window-items win))))
              (cond
                (matching
                 (window-item-hotkey-pressed win matching))
                (t
                 (return-from send-to-window (call-next-method)))))))
-        ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
-        (constrain! (window-offset win)
-                    (1+ (- (window-cursor win) pagelen))
-                    (window-cursor win))
-        (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
+        (setf (window-offset win)
+              (clamp (window-offset win)
+                     (1+ (- (window-cursor win) pagelen))
+                     (window-cursor win)))
+        (setf (window-offset win)
+              (clamp (window-offset win) 0 (max 0 (- num-items pagelen))))
         (prepare-window win)
         (redraw-window-area win)
         k))))
@@ -3612,11 +3617,12 @@ The enter key selects the item under the cursor."))
         (pagelen (window-page-length win)))
     (setf (window-offset win) (- num-items pagelen))
     (move-cursor-to win (1- num-items))
-    ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
-    (constrain! (window-offset win)
-                (1+ (- (window-cursor win) pagelen))
-                (window-cursor win))
-    (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))))
+    (setf (window-offset win)
+          (clamp (window-offset win)
+                 (1+ (- (window-cursor win) pagelen))
+                 (window-cursor win)))
+    (setf (window-offset win)
+          (clamp (window-offset win) 0 (max 0 (- num-items pagelen))))))
 
 
 
@@ -3650,9 +3656,12 @@ Pressing DELETE will erase all characters in FILTER-STRING."))
 
 
 
-(defmethod add-item :around ((win <Filtered-Window>) itemdata str &optional k)
-  (let ((item (make-list-item :str str :item itemdata :hotkey k)))
-    (push-end item (window-all-items win))
+(defmethod add-item :around ((win <Filtered-Window>) itemdata str
+                             &key hotkey (prepend? nil))
+  (let ((item (make-list-item :str str :item itemdata :hotkey hotkey)))
+    (if prepend?
+        (push item (window-all-items win))
+        (push-end item (window-all-items win)))
     (if (item-matches-filter-string? win item)
         (call-next-method))))
 
@@ -3761,8 +3770,9 @@ moves the cursor to that item."))
       (for item in (window-menu-items win))
       (destructuring-bind (value &key text key handler) item
         (print (list value text key handler))
-        (add-item win value text (if (characterp key)
-                                     (tcod-gui::make-simple-key key)))))))
+        (add-item win value text
+                  :hotkey (if (characterp key)
+                              (tcod-gui::make-simple-key key)))))))
 
 
 
@@ -3941,14 +3951,14 @@ current window activation.")))
        (resize-window win (window-width win) (min (- (screen-height) 2)
                                                   (+ (length items) 2)))
        (loop for item-desc-binding in items do
-            (destructuring-bind (item desc &optional binding) item-desc-binding
-              (add-item win item
-                        (format nil "~20A{yellow}~A{/}"
-                                desc
-                                (if binding
-                                    (key->string (binding->key binding))
-                                    ""))
-                        (if binding (binding->key binding)))))))
+         (destructuring-bind (item desc &optional binding) item-desc-binding
+           (add-item win item
+                     (format nil "~20A{yellow}~A{/}"
+                             desc
+                             (if binding
+                                 (key->string (binding->key binding))
+                                 ""))
+                     :hotkey (if binding (binding->key binding)))))))
     (move-cursor-to win (min (length items) cursor))
     (call-next-method)))
 
@@ -4032,13 +4042,9 @@ refreshed.")
            (incf (window-offset win)))
           (otherwise
            (return-from send-to-window (call-next-method))))
-        ;; (warn "offset = ~D, cursor = ~D, num-items = ~D"
-        ;;            (window-offset win) (window-cursor win) num-items)
-        (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
+        (setf (window-offset win)
+              (clamp (window-offset win) 0 (max 0 (- num-items pagelen))))
         (move-cursor-to win (window-offset win))
-        ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
-        ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
-        ;;            (window-offset win) (window-cursor win) num-items)
         (prepare-window win)
         (redraw-window-area win))
       k)))
@@ -4055,7 +4061,7 @@ refreshed.")
       (if (> (length msg) (- (window-width win) 2))
           (wrap-items win)
           ;; else
-          (add-item win msg msg nil))
+          (add-item win msg msg :hotkey nil))
       (move-cursor-to-end win)
       (window-changed! win))))
 
@@ -4072,19 +4078,8 @@ refreshed.")
         (num-items (length (window-items win))))
     (when (< num-items hgt)
       (dotimes (i (- hgt num-items))
-        (add-item win "" "" nil))
+        (add-item win "" "" :hotkey nil))
       (move-cursor-to-end win))))
-
-
-
-;;;     (setf (window-offset win) (- (length (window-items win))
-;;;                              (- (window-height win) 2)))
-;;;     (setf (window-cursor win) (1- (length (window-items win))))
-;;;     (constrain! (window-cursor win) 0 (max 0 (1- (length (window-items win)))))
-;;;     (constrain! (window-offset win) 0 (max 0 (- (length (window-items win))
-;;;                                             (- (window-height win) 2))))
-;;;     (prepare-window win)
-;;;     (redraw-window-area win)))
 
 
 (defmethod clear-messages ((win <Log-Window>))
@@ -4566,11 +4561,9 @@ prompt. Called when a line of input is entered in the window.")))
                 (render-input-string win)))
              (t
               (return-from send-to-window (call-next-method))))
-           (constrain! (window-offset win) 0 (max 0 (- num-items pagelen)))
+           (setf (window-offset win)
+                 (clamp (window-offset win) 0 (max 0 (- num-items pagelen))))
            (move-cursor-to win (window-offset win))
-           ;;(constrain! (window-cursor win) 0 (max 0 (1- num-items)))
-           ;; (warn "Now offset = ~D, cursor = ~D, num-items = ~D"
-           ;;            (window-offset win) (window-cursor win) num-items)
            (prepare-window win)
            (redraw-window-area win))
          k))
@@ -4887,14 +4880,14 @@ position of the mouse pointer. "
         (oldx (window-tlx win))
         (oldy (window-tly win)))
     (move-window win
-                 (constrain
+                 (clamp
                   (cond
                     ((> *mouse-x* (- (screen-width) width))
                      (- *mouse-x* width))
                     (t
                      (1+ *mouse-x*)))
                   0 (- (screen-width) width 1))
-                 (constrain
+                 (clamp
                   (cond
                     ((> *mouse-y* (- (screen-height) height))
                      (- *mouse-y* height))
@@ -5249,13 +5242,13 @@ is initially positioned with top left corner TLX,TLY on the map console."
         ;; therefore cx - offsetx = current view-tlx
         ;;
         (setf deltax (- prev-cx
-                        (constrain (mouse-cx rodent)
-                                   (window-tlx win)
-                                   (window-brx win))))
+                        (clamp (mouse-cx rodent)
+                               (window-tlx win)
+                               (window-brx win))))
         (setf deltay (- prev-cy
-                        (constrain (mouse-cy rodent)
-                                   (window-tly win)
-                                   (window-bry win))))
+                        (clamp (mouse-cy rodent)
+                               (window-tly win)
+                               (window-bry win))))
         (unless (and (= deltax deltay 0))
           (unless started-dragging?
             (setf started-dragging? t)
@@ -5552,11 +5545,11 @@ a double-click event is created.")
         (t                              ; mouse "just hovering"
          (when *topwin*
            (setf (gui-event-winx mouse-hover-event)
-                 (constrain (- *mouse-x* (window-tlx *topwin*))
-                            0 (1- (window-width *topwin*))))
+                 (clamp (- *mouse-x* (window-tlx *topwin*))
+                        0 (1- (window-width *topwin*))))
            (setf (gui-event-winy mouse-hover-event)
-                 (constrain (- *mouse-y* (window-tly *topwin*))
-                            0 (1- (window-height *topwin*))))
+                 (clamp (- *mouse-y* (window-tly *topwin*))
+                        0 (1- (window-height *topwin*))))
            (setf (gui-event-mouse-state mouse-hover-event) *rodent*)
            (setf (gui-event-focus mouse-hover-event) nil)
            (send-to-window *topwin* mouse-hover-event))))
